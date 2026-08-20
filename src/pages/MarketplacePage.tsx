@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { AlertCircle, ArrowUpDown, Grid, List, Search, SlidersHorizontal, X } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { OpportunityCard } from '../components/OpportunityCard';
+import { OpportunityImage } from '../components/OpportunityImage';
 import { Category, DurationCategory, InvestmentOpportunity } from '../types';
 import { useI18n } from '../i18n/LanguageContext';
 import { TranslationKey } from '../i18n/translations';
@@ -21,7 +22,7 @@ const CATEGORIES: (Category | 'All')[] = [
 
 const DURATIONS: (DurationCategory | 'All')[] = ['All', '1-3 years', '3-5 years', '5+ years'];
 const RETURN_RANGES = ['All', 'lt8', '8to10', '10to12', 'gt12'] as const;
-const MIN_RANGES = ['All', '25k', '50k', '100k'] as const;
+const MIN_RANGES = ['All', '5k', '25k', '100k'] as const;
 
 type ReturnRange = (typeof RETURN_RANGES)[number];
 type MinRange = (typeof MIN_RANGES)[number];
@@ -93,8 +94,8 @@ export const MarketplacePage: React.FC = () => {
           if (returnRange === 'gt12' && max <= 12) return false;
         }
 
+        if (minRange === '5k' && opp.minInvestment > 5_000) return false;
         if (minRange === '25k' && opp.minInvestment > 25_000) return false;
-        if (minRange === '50k' && opp.minInvestment > 50_000) return false;
         if (minRange === '100k' && opp.minInvestment < 100_000) return false;
 
         return true;
@@ -468,13 +469,11 @@ const ListRow: React.FC<ListRowProps> = ({ opportunity, onDetails, onInvest, lan
   return (
     <li className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4 hover:shadow-lg transition-shadow">
       <div className="flex items-start gap-4 min-w-0">
-        <img
+        <OpportunityImage
           src={opportunity.imageUrl}
-          alt=""
-          loading="lazy"
-          decoding="async"
-          className="w-24 h-20 rounded-2xl object-cover shrink-0 bg-slate-100 dark:bg-slate-800"
-          referrerPolicy="no-referrer"
+          category={opportunity.category}
+          seed={opportunity.id}
+          className="w-24 h-20 rounded-2xl shrink-0"
         />
         <div className="space-y-1 min-w-0">
           <p className="flex flex-wrap items-center gap-2 text-xs">

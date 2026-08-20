@@ -69,6 +69,52 @@ Wrap it in `components/Modal.tsx`. That shell supplies Escape-to-close,
 click-outside, a focus trap, focus restoration, a body scroll lock and the
 labelled `role="dialog"` wiring.
 
+
+## How investing works
+
+Allocations start at **5,000 XAF**, in multiples of 1,000. The amount
+determines the tier, and the tier fixes two things: how long the capital
+stays locked, and where inside the offering's quoted yield band the
+investor actually earns.
+
+| Tier | Allocation | Locked for | Rate earned |
+| --- | --- | --- | --- |
+| Starter | 5,000 – 49,999 | 6 months | band minimum |
+| Growth | 50,000 – 249,999 | 1 year | ⅓ into the band |
+| Premium | 250,000 – 999,999 | 2 years | ⅔ into the band |
+| Elite | 1,000,000+ | 4 years | band maximum |
+
+Rates are interpolated between an offering's `projectedReturnMin` and
+`projectedReturnMax`, so no tier can pay more than the project itself
+advertises. The model lives in `src/lib/investmentTiers.ts` — change the
+ladder there and every surface follows.
+
+### The lock
+
+Invested capital cannot be withdrawn before its `unlockDate`. That
+commitment is what earns the tier rate, so it is enforced in
+`redeemHolding` rather than only by hiding a button: the action refuses
+whatever path reaches it.
+
+- **Locked** — inside its term. The dashboard shows the unlock date, a
+  progress bar and the days remaining.
+- **Unlocked** — term elapsed. The holding can be redeemed, which moves
+  its full current value into the cash balance and closes the position.
+- **Redeemed** — closed. Excluded from portfolio totals, since its value
+  already sits in the cash balance.
+
+Cash-out only ever draws on the cash balance. The withdrawal dialog says
+how much is locked so a large portfolio with a small balance does not
+read as a bug.
+
+## Images
+
+Every offering has generated, category-themed SVG artwork built into the
+bundle (`src/lib/opportunityArt.ts`). `OpportunityImage` paints it
+immediately and fades a photograph in over it once decoded; if the photo
+fails — blocked host, offline, dead URL — the artwork simply stays. No
+card can render an empty image box.
+
 ## Accessibility
 
 - Every destination and action is reachable in **three clicks or fewer** — via
