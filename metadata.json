@@ -1,0 +1,6 @@
+{
+  "name": "GrowthFund",
+  "description": "A modern, transparent, and compliant Franc CFA (XAF) investment platform for discovering vetted opportunities, cash-in/out in 5,000 XAF increments, tracking portfolios, and earning 1,000 XAF referral bonuses.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

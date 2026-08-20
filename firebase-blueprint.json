@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "users": {
+      "title": "User Profile",
+      "description": "Registered investor account details, wallet balances, and KYC tier.",
+      "properties": {
+        "id": { "type": "string", "description": "Firebase Auth UID" },
+        "name": { "type": "string", "description": "Full legal name" },
+        "email": { "type": "string", "description": "Email address" },
+        "initials": { "type": "string", "description": "Avatar initials" },
+        "accountNumber": { "type": "string", "description": "Unique investor account number" },
+        "kycTier": { "type": "string", "description": "KYC level" },
+        "isKycApproved": { "type": "boolean", "description": "KYC approval status" },
+        "walletBalance": { "type": "number", "description": "Cash balance in XAF" },
+        "totalInvested": { "type": "number", "description": "Total invested principal in XAF" },
+        "totalReturns": { "type": "number", "description": "Total returns earned in XAF" },
+        "activeInvestmentsCount": { "type": "number", "description": "Count of active investments" },
+        "notificationsCount": { "type": "number", "description": "Unread notification count" },
+        "joinedDate": { "type": "string", "description": "Account registration date" },
+        "memberSince": { "type": "string", "description": "Member since year" },
+        "referralCode": { "type": "string", "description": "Personal referral code" },
+        "referralCount": { "type": "number", "description": "Number of successful referrals" },
+        "referralEarnings": { "type": "number", "description": "Total referral earnings in XAF" },
+        "referredBy": { "type": "string", "description": "Sponsor referral code if used" },
+        "photoURL": { "type": "string", "description": "User avatar photo URL" },
+        "createdAt": { "type": "string", "description": "Creation timestamp" },
+        "updatedAt": { "type": "string", "description": "Last update timestamp" }
+      },
+      "subcollections": {
+        "holdings": {
+          "title": "Portfolio Holdings",
+          "description": "Investments made by the user in specific offerings.",
+          "properties": {
+            "id": { "type": "string", "description": "Holding ID" },
+            "opportunityId": { "type": "string", "description": "Associated opportunity ID" },
+            "opportunityTitle": { "type": "string", "description": "Project title" },
+            "category": { "type": "string", "description": "Asset category" },
+            "investedAmount": { "type": "number", "description": "Invested amount in XAF" },
+            "currentValue": { "type": "number", "description": "Current valuation in XAF" },
+            "totalReturnsEarned": { "type": "number", "description": "Returns earned in XAF" },
+            "projectedReturnRate": { "type": "number", "description": "Projected annual percentage return" },
+            "investedDate": { "type": "string", "description": "Date of investment" },
+            "maturityDate": { "type": "string", "description": "Maturity date" },
+            "nextDistributionDate": { "type": "string", "description": "Next distribution date" },
+            "status": { "type": "string", "description": "Active | Matured | Pending" },
+            "riskLevel": { "type": "string", "description": "Risk profile rating" }
+          }
+        },
+        "transactions": {
+          "title": "Wallet & Investment Transactions",
+          "description": "Cash In, Cash Out, Investment, and Referral Bonus transaction history.",
+          "properties": {
+            "id": { "type": "string", "description": "Transaction ID" },
+            "date": { "type": "string", "description": "Timestamp string" },
+            "type": { "type": "string", "description": "Investment | Return Distribution | Deposit | Withdrawal | Referral Bonus" },
+            "projectName": { "type": "string", "description": "Description / Project Name" },
+            "amount": { "type": "number", "description": "Transaction amount in XAF" },
+            "status": { "type": "string", "description": "Completed | Processing | Failed" },
+            "referenceId": { "type": "string", "description": "Payment reference code" }
+          }
+        },
+        "referredFriends": {
+          "title": "Referred Friends Ledger",
+          "description": "List of friends referred by the user.",
+          "properties": {
+            "id": { "type": "string", "description": "Friend referral ID" },
+            "name": { "type": "string", "description": "Friend name" },
+            "email": { "type": "string", "description": "Friend email" },
+            "date": { "type": "string", "description": "Referral date" },
+            "bonus": { "type": "number", "description": "Bonus amount in XAF (1000 XAF)" },
+            "status": { "type": "string", "description": "Bonus Paid | Pending Verification" }
+          }
+        }
+      }
+    },
+    "referralCodes": {
+      "title": "Referral Codes Index",
+      "description": "Global lookup index mapping referral codes to user IDs.",
+      "properties": {
+        "code": { "type": "string", "description": "Unique referral code" },
+        "ownerUid": { "type": "string", "description": "User ID of referral owner" },
+        "ownerName": { "type": "string", "description": "Name of referral owner" },
+        "createdAt": { "type": "string", "description": "Timestamp" }
+      }
+    }
+  }
+}
