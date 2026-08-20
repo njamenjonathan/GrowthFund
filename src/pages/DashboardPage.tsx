@@ -17,6 +17,8 @@ import {
   TrendingUp,
   Users,
   Wallet,
+  Lock,
+  LockOpen,
 } from 'lucide-react';
 import {
   Area,
@@ -32,6 +34,9 @@ import {
 } from 'recharts';
 import { useApp } from '../context/AppContext';
 import { CertificateModal } from '../components/CertificateModal';
+import { HoldingLockStatus } from '../components/HoldingLockStatus';
+import { RedeemDialog } from '../components/RedeemDialog';
+import { hasReached, termLabel } from '../lib/investmentTiers';
 import { DashboardTab, PortfolioHolding, TransactionType } from '../types';
 import { MONTH_LABELS, PORTFOLIO_CHART_DATA } from '../data/mockData';
 import { useI18n } from '../i18n/LanguageContext';
@@ -101,12 +106,15 @@ export const DashboardPage: React.FC = () => {
   const [referralInput, setReferralInput] = useState('');
   const [hasCopied, setHasCopied] = useState(false);
   const [certificateHolding, setCertificateHolding] = useState<PortfolioHolding | null>(null);
+  const [redeemTarget, setRedeemTarget] = useState<PortfolioHolding | null>(null);
 
   const allocation = useMemo(() => {
     const totals: Record<string, number> = {};
-    holdings.forEach((holding) => {
-      totals[holding.category] = (totals[holding.category] ?? 0) + holding.investedAmount;
-    });
+    holdings
+      .filter((holding) => holding.status !== 'Redeemed')
+      .forEach((holding) => {
+        totals[holding.category] = (totals[holding.category] ?? 0) + holding.investedAmount;
+      });
     return Object.entries(totals).map(([name, value]) => ({
       name,
       value,
@@ -123,9 +131,28 @@ export const DashboardPage: React.FC = () => {
     [language],
   );
 
-  const investedCapital = holdings.reduce((sum, h) => sum + h.investedAmount, 0);
-  const earnedDistributions = holdings.reduce((sum, h) => sum + h.totalReturnsEarned, 0);
-  const totalValue = holdings.reduce((sum, h) => sum + h.currentValue, 0) + user.walletBalance;
+  // Redeemed positions are closed: their value already sits in the cash
+  // balance, so counting them again would double the portfolio total.
+  const openHoldings = useMemo(
+    () => holdings.filter((h) => h.status !== 'Redeemed'),
+    [holdings],
+  );
+
+  const lockedHoldings = useMemo(
+    () => openHoldings.filter((h) => !hasReached(h.unlockDate)),
+    [openHoldings],
+  );
+
+  const unlockedHoldings = useMemo(
+    () => openHoldings.filter((h) => hasReached(h.unlockDate)),
+    [openHoldings],
+  );
+
+  const investedCapital = openHoldings.reduce((sum, h) => sum + h.investedAmount, 0);
+  const lockedCapital = lockedHoldings.reduce((sum, h) => sum + h.currentValue, 0);
+  const unlockedCapital = unlockedHoldings.reduce((sum, h) => sum + h.currentValue, 0);
+  const earnedDistributions = openHoldings.reduce((sum, h) => sum + h.totalReturnsEarned, 0);
+  const totalValue = openHoldings.reduce((sum, h) => sum + h.currentValue, 0) + user.walletBalance;
 
   const filteredTransactions = useMemo(
     () => (txFilter === 'All' ? transactions : transactions.filter((tx) => tx.type === txFilter)),
@@ -245,7 +272,7 @@ export const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 gf-stagger">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 gf-stagger">
         <StatCard
           icon={Coins}
           tone="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
@@ -263,7 +290,24 @@ export const DashboardPage: React.FC = () => {
           tone="bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400"
           label={t('dash.activeCapital')}
           value={formatFCFA(investedCapital, language)}
-          footnote={t('dash.acrossOfferings', { count: holdings.length })}
+          footnote={t('dash.acrossOfferings', { count: openHoldings.length })}
+        />
+        <StatCard
+          icon={Lock}
+          tone="bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-400"
+          label={t('dash.lockedCapital')}
+          value={formatFCFA(lockedCapital, language)}
+          footnote={
+            unlockedCapital > 0 ? (
+              <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1">
+                <LockOpen className="w-3 h-3" aria-hidden="true" />
+                {t('dash.unlockedCapital', { amount: formatFCFA(unlockedCapital, language) })}
+              </span>
+            ) : (
+              t('dash.lockedCapitalHint', { count: lockedHoldings.length })
+            )
+          }
+          onClick={() => setDashboardTab('portfolio')}
         />
         <StatCard
           icon={Wallet}
@@ -498,7 +542,7 @@ export const DashboardPage: React.FC = () => {
                             {tr(holding.opportunityTitle)}
                           </p>
                           <p className="text-xs text-slate-500 dark:text-slate-400">
-                            {t('dash.maturity')}: {formatDate(holding.maturityDate, language)}
+                            {t('dash.maturity')}: {formatDate(holding.unlockDate, language)}
                           </p>
                         </div>
 
@@ -552,9 +596,7 @@ export const DashboardPage: React.FC = () => {
                   <article key={holding.id} className={`${card} p-6 space-y-4`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
-                          {holding.status}
-                        </span>
+                        <HoldingLockStatus holding={holding} />
                         <h3 className="text-base font-bold text-slate-900 dark:text-white mt-2">
                           <button
                             type="button"
@@ -568,8 +610,21 @@ export const DashboardPage: React.FC = () => {
                           {t(`market.category.${holding.category.replace(' ', '')}` as TranslationKey)}
                         </p>
                       </div>
-                      <span className="font-mono text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-1 rounded-lg shrink-0">
-                        {formatPercent(holding.projectedReturnRate, language)}
+                      <span className="shrink-0 text-right">
+                        <span className="block font-mono text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-1 rounded-lg">
+                          {formatPercent(holding.projectedReturnRate, language)}
+                        </span>
+                        <span className="block text-[10px] text-slate-500 dark:text-slate-400 mt-1">
+                          {t('dash.tierBadge', {
+                            tier: t(`tier.${holding.tierId}` as TranslationKey),
+                            // Same phrasing as the lock-in cell below, so a
+                            // card never says "48 months" and "4 years".
+                            term: t(
+                              termLabel(holding.lockMonths).key,
+                              { count: termLabel(holding.lockMonths).count },
+                            ),
+                          })}
+                        </span>
                       </span>
                     </div>
 
@@ -600,26 +655,66 @@ export const DashboardPage: React.FC = () => {
                       </div>
                       <div>
                         <dt className="text-slate-500 dark:text-slate-400 text-[10px] uppercase font-bold">
-                          {t('dash.maturity')}
+                          {t('lock.title')}
                         </dt>
                         <dd className="font-medium text-slate-900 dark:text-white">
-                          {formatDate(holding.maturityDate, language)}
+                          {t(termLabel(holding.lockMonths).key, { count: termLabel(holding.lockMonths).count })}
                         </dd>
                       </div>
                     </dl>
 
+                    {holding.status !== 'Redeemed' && (
+                      <HoldingLockStatus holding={holding} showProgress badge={false} />
+                    )}
+
                     <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
-                      <span className="text-slate-400 text-[11px]">
+                      <span className="text-slate-500 dark:text-slate-400 text-[11px]">
                         {t('dash.subscribed')} {formatDate(holding.investedDate, language)}
                       </span>
-                      <button
-                        type="button"
-                        onClick={() => setCertificateHolding(holding)}
-                        className="px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900 rounded-lg font-bold flex items-center gap-1 transition-colors text-[11px]"
-                      >
-                        <Award className="w-3.5 h-3.5" aria-hidden="true" />
-                        {t('dash.certificate')}
-                      </button>
+                      <span className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCertificateHolding(holding)}
+                          className="px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900 rounded-lg font-bold flex items-center gap-1 transition-colors text-[11px]"
+                        >
+                          <Award className="w-3.5 h-3.5" aria-hidden="true" />
+                          {t('dash.certificate')}
+                        </button>
+
+                        {/*
+                          Disabled rather than hidden while locked: the
+                          investor can see the action exists and, from the
+                          title, exactly when it becomes available.
+                        */}
+                        {holding.status !== 'Redeemed' && (
+                          <button
+                            type="button"
+                            onClick={() => setRedeemTarget(holding)}
+                            disabled={!hasReached(holding.unlockDate)}
+                            title={
+                              hasReached(holding.unlockDate)
+                                ? t('lock.redeemHint', {
+                                    amount: formatFCFA(holding.currentValue, language),
+                                  })
+                                : t('lock.cannotRedeem', {
+                                    date: formatDate(holding.unlockDate, language),
+                                  })
+                            }
+                            className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors text-[11px] ${
+                              hasReached(holding.unlockDate)
+                                ? 'bg-slate-900 dark:bg-emerald-700 text-white hover:bg-slate-800 dark:hover:bg-emerald-600'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                            }`}
+                          >
+                            {hasReached(holding.unlockDate) ? (
+                              <LockOpen className="w-3.5 h-3.5" aria-hidden="true" />
+                            ) : (
+                              <Lock className="w-3.5 h-3.5" aria-hidden="true" />
+                            )}
+                            {t('lock.redeem')}
+                          </button>
+                        )}
+                      </span>
                     </div>
                   </article>
                 ))}
@@ -1051,6 +1146,8 @@ export const DashboardPage: React.FC = () => {
         )}
       </div>
 
+      <RedeemDialog holding={redeemTarget} onClose={() => setRedeemTarget(null)} />
+
       <CertificateModal
         holding={certificateHolding}
         isOpen={certificateHolding !== null}
@@ -1078,7 +1175,7 @@ const StatCard: React.FC<StatCardProps> = ({ icon: Icon, tone, label, value, foo
           <Icon className="w-4 h-4" />
         </span>
       </div>
-      <p className="text-xl sm:text-2xl font-extrabold font-mono text-slate-900 dark:text-white truncate">
+      <p className="text-xl sm:text-2xl xl:text-lg font-extrabold font-mono tabular-nums text-slate-900 dark:text-white">
         {value}
       </p>
       <p className="text-[11px] text-slate-500 dark:text-slate-400">{footnote}</p>

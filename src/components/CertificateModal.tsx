@@ -137,7 +137,7 @@ export const CertificateModal: React.FC<CertificateModalProps> = ({ holding, isO
                   <Row label={t('cert.horizon')} className="bg-slate-50/70 dark:bg-slate-800/60">
                     <span className="text-slate-900 dark:text-white">
                       {formatPercent(holding.projectedReturnRate, language)} {t('opp.perAnnum')} ·{' '}
-                      {formatDate(holding.maturityDate, language)}
+                      {formatDate(holding.unlockDate, language)}
                     </span>
                   </Row>
                   <Row label={t('cert.custodian')}>

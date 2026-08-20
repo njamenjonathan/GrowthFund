@@ -14,19 +14,33 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { OpportunityCard } from '../components/OpportunityCard';
+import { TierLadder } from '../components/TierLadder';
 import { useI18n } from '../i18n/LanguageContext';
 import { useReveal } from '../hooks/useReveal';
 import { formatFCFA, formatPercent } from '../utils/format';
+import {
+  MIN_INVESTMENT,
 
-const HORIZONS = [2, 3, 5];
+  lockMonthsFor,
+  tierForAmount,
+  termLabel,
+} from '../lib/investmentTiers';
 
 export const LandingPage: React.FC = () => {
-  const { t, language } = useI18n();
+  const { t, tr, language } = useI18n();
   const { navigate, opportunities, openAuthModal } = useApp();
 
   const [amount, setAmount] = useState(250_000);
   const [rate, setRate] = useState(10.5);
-  const [years, setYears] = useState(3);
+
+  /*
+   * The commitment term is derived from the amount rather than chosen
+   * separately, because that is how the product actually works: the tier
+   * an allocation falls into fixes how long it stays locked.
+   */
+  const tier = tierForAmount(amount);
+  const lockMonths = lockMonthsFor(amount);
+  const years = lockMonths / 12;
 
   const annualReturn = (amount * rate) / 100;
   const totalReturn = annualReturn * years;
@@ -36,6 +50,7 @@ export const LandingPage: React.FC = () => {
 
   const featuresRef = useReveal<HTMLElement>();
   const calcRef = useReveal<HTMLElement>();
+  const tiersRef = useReveal<HTMLElement>();
   const pillarsRef = useReveal<HTMLElement>();
   const stepsRef = useReveal<HTMLElement>();
   const ctaRef = useReveal<HTMLElement>();
@@ -245,9 +260,9 @@ export const LandingPage: React.FC = () => {
                 <input
                   id="calc-amount"
                   type="range"
-                  min={25_000}
+                  min={MIN_INVESTMENT}
                   max={2_500_000}
-                  step={25_000}
+                  step={5_000}
                   value={amount}
                   onChange={(event) => setAmount(Number(event.target.value))}
                   className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
@@ -278,28 +293,20 @@ export const LandingPage: React.FC = () => {
                 />
               </div>
 
-              <fieldset className="space-y-2">
-                <legend className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">
+              <div className="rounded-2xl border border-emerald-800/70 bg-emerald-950/40 p-4 space-y-1">
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-400">
                   {t('home.calcHorizon')}
-                </legend>
-                <div className="grid grid-cols-3 gap-2">
-                  {HORIZONS.map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setYears(value)}
-                      aria-pressed={years === value}
-                      className={`py-2.5 px-3 rounded-xl text-xs font-bold border transition-colors ${
-                        years === value
-                          ? 'border-emerald-500 bg-emerald-500/20 text-white'
-                          : 'border-slate-800 bg-slate-850 text-slate-400 hover:bg-slate-800'
-                      }`}
-                    >
-                      {t('home.calcYears', { count: value })}
-                    </button>
-                  ))}
-                </div>
-              </fieldset>
+                </p>
+                <p className="text-sm text-slate-200">
+                  <strong className="font-extrabold text-white">
+                    {t(termLabel(lockMonths).key, { count: termLabel(lockMonths).count })}
+                  </strong>{' '}
+                  · {t('invest.tierNow', { tier: tr(tier.name) })}
+                </p>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  {t('home.calcLockNote')}
+                </p>
+              </div>
             </div>
 
             <div className="lg:col-span-5 bg-slate-850 p-6 sm:p-8 rounded-3xl border border-slate-700/80 space-y-5">
@@ -350,6 +357,29 @@ export const LandingPage: React.FC = () => {
             </div>
           </div>
         </div>
+      </section>
+
+      {/* Allocation tiers — the core product rule, stated before signup. */}
+      <section ref={tiersRef} className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 gf-reveal">
+        <div className="text-center space-y-3 max-w-2xl mx-auto">
+          <p className="inline-flex items-center gap-2 text-emerald-700 dark:text-emerald-400 font-bold text-xs uppercase tracking-wider">
+            <Lock className="w-4 h-4" aria-hidden="true" />
+            {t('tier.label')}
+          </p>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white font-display">
+            {t('home.tierTitle')}
+          </h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
+            {t('home.tierBody')}
+          </p>
+        </div>
+
+        <TierLadder />
+
+        <p className="text-xs text-slate-600 dark:text-slate-400 flex items-start gap-2 max-w-2xl mx-auto">
+          <Lock className="w-3.5 h-3.5 shrink-0 mt-0.5" aria-hidden="true" />
+          {t('lock.explainer')}
+        </p>
       </section>
 
       {/* Pillars */}

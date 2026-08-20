@@ -17,8 +17,17 @@ import {
   UserProfile,
 } from '../types';
 import { INITIAL_HOLDINGS, INITIAL_TRANSACTIONS, INITIAL_USER, OPPORTUNITIES } from '../data/mockData';
-import { formatFCFA, formatXAF, todayIso } from '../utils/format';
+import { formatDate, formatFCFA, formatXAF, todayIso } from '../utils/format';
 import { hashToRoute, readReferralFromUrl, routeToHash } from '../lib/routing';
+import {
+  INVESTMENT_STEP,
+  MIN_INVESTMENT,
+  addMonthsIso,
+  effectiveRate,
+  hasReached,
+  lockMonthsFor,
+  tierForAmount,
+} from '../lib/investmentTiers';
 import { readStorage, writeStorage } from '../lib/storage';
 import { useI18n } from '../i18n/LanguageContext';
 import { getFirebase, FirebaseUser } from '../lib/firebase';
@@ -89,6 +98,11 @@ interface AppContextType {
   applyReferralCode: (code: string) => Promise<boolean>;
   simulateFriendReferral: (friendName?: string) => Promise<void>;
   executeInvestment: (opportunityId: string, amount: number) => Promise<boolean>;
+  /**
+   * Returns a matured holding's capital to the cash balance. Refuses
+   * while the holding is still inside its lock-in period.
+   */
+  redeemHolding: (holdingId: string) => Promise<boolean>;
   executeDeposit: (amount: number, method: string, accountDetails?: string) => Promise<boolean>;
   executeWithdrawal: (amount: number, method: string, accountDetails?: string) => Promise<boolean>;
   completeKYC: (tier: 'Tier 1 Verified' | 'Tier 2 Accredited') => Promise<void>;
@@ -598,9 +612,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const opportunity = opportunities.find((item) => item.id === opportunityId);
       if (!opportunity) return false;
 
-      if (!Number.isFinite(amount) || amount < opportunity.minInvestment) {
+      const minimum = Math.max(opportunity.minInvestment, MIN_INVESTMENT);
+      if (!Number.isFinite(amount) || amount < minimum) {
+        addToast(t('toast.investBelowMin', { amount: formatFCFA(minimum, language) }), 'error');
+        return false;
+      }
+
+      if (amount % INVESTMENT_STEP !== 0) {
         addToast(
-          t('toast.investBelowMin', { amount: formatFCFA(opportunity.minInvestment, language) }),
+          t('toast.investStep', { amount: formatFCFA(INVESTMENT_STEP, language) }),
           'error',
         );
         return false;
@@ -619,6 +639,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       const date = todayIso();
 
+      // The allocation's tier fixes both the commitment term and the rate
+      // it earns, so a larger allocation locks for longer and earns more.
+      const tier = tierForAmount(amount);
+      const lockMonths = lockMonthsFor(amount);
+      const rate = effectiveRate(
+        amount,
+        opportunity.projectedReturnMin,
+        opportunity.projectedReturnMax,
+      );
+      const unlockDate = addMonthsIso(date, lockMonths);
+
       const holding: PortfolioHolding = {
         id: `hold-${Date.now()}`,
         opportunityId: opportunity.id,
@@ -627,11 +658,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         investedAmount: amount,
         currentValue: amount,
         totalReturnsEarned: 0,
-        projectedReturnRate: opportunity.projectedReturnMin,
+        projectedReturnRate: rate,
+        tierId: tier.id,
+        lockMonths,
         investedDate: date,
-        maturityDate: `${new Date().getFullYear() + 4}-${date.slice(5)}`,
-        nextDistributionDate: `${new Date().getFullYear() + 1}-01-15`,
-        status: 'Active',
+        unlockDate,
+        // First distribution lands one period into the term.
+        nextDistributionDate: addMonthsIso(date, Math.min(lockMonths, 3)),
+        status: 'Locked',
         riskLevel: opportunity.riskLevel,
       };
 
@@ -672,6 +706,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         t('toast.invested', {
           amount: formatFCFA(amount, language),
           name: opportunity.title[language],
+          months: lockMonths,
         }),
         'success',
       );
@@ -748,6 +783,64 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return true;
     },
     [user.walletBalance, addToast, persist, t, language],
+  );
+
+  const redeemHolding = useCallback(
+    async (holdingId: string): Promise<boolean> => {
+      const holding = holdings.find((item) => item.id === holdingId);
+      if (!holding || holding.status === 'Redeemed') return false;
+
+      /*
+       * The lock is enforced here rather than only in the UI. Hiding the
+       * button would be a presentation detail; refusing the action is the
+       * actual rule, and it holds however the call is reached.
+       */
+      if (!hasReached(holding.unlockDate)) {
+        addToast(
+          t('toast.holdingLocked', {
+            date: formatDate(holding.unlockDate, language),
+          }),
+          'error',
+        );
+        return false;
+      }
+
+      const proceeds = holding.currentValue;
+      const date = todayIso();
+
+      const transaction: Transaction = {
+        id: `tx-${Date.now()}`,
+        date,
+        type: 'Redemption',
+        projectName: holding.opportunityTitle,
+        amount: proceeds,
+        status: 'Completed',
+        referenceId: makeReference('RDM'),
+      };
+
+      const patch = {
+        walletBalance: user.walletBalance + proceeds,
+        activeInvestmentsCount: Math.max(0, user.activeInvestmentsCount - 1),
+      };
+
+      const redeemed: PortfolioHolding = { ...holding, status: 'Redeemed' };
+
+      setUser((prev) => ({ ...prev, ...patch }));
+      setHoldings((prev) => prev.map((item) => (item.id === holdingId ? redeemed : item)));
+      setTransactions((prev) => [transaction, ...prev]);
+
+      await persist(patch, { transaction, holding: redeemed });
+
+      addToast(
+        t('toast.redeemed', {
+          amount: formatFCFA(proceeds, language),
+          name: holding.opportunityTitle[language],
+        }),
+        'success',
+      );
+      return true;
+    },
+    [holdings, user.walletBalance, user.activeInvestmentsCount, addToast, persist, t, language],
   );
 
   const applyReferralCode = useCallback(
@@ -919,6 +1012,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       applyReferralCode,
       simulateFriendReferral,
       executeInvestment,
+      redeemHolding,
       executeDeposit,
       executeWithdrawal,
       completeKYC,
@@ -957,6 +1051,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       applyReferralCode,
       simulateFriendReferral,
       executeInvestment,
+      redeemHolding,
       executeDeposit,
       executeWithdrawal,
       completeKYC,

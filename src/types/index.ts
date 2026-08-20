@@ -1,5 +1,7 @@
 import { Localized } from '../i18n/types';
 
+export type InvestmentTierId = 'starter' | 'growth' | 'premium' | 'elite';
+
 export type { PageRoute, DashboardTab } from './routes';
 export type { Localized };
 
@@ -81,6 +83,8 @@ export interface InvestmentOpportunity {
   distributionFrequency: DistributionFrequency;
   status: OfferingStatus;
   imageUrl: string;
+  /** Extra photography for the detail page gallery. */
+  galleryImages: string[];
   overview: Localized;
   sponsor: Localized;
   sponsorNote: Localized;
@@ -105,6 +109,8 @@ export interface InvestmentOpportunity {
   documents: DocumentItem[];
 }
 
+export type HoldingStatus = 'Locked' | 'Unlocked' | 'Redeemed';
+
 export interface PortfolioHolding {
   id: string;
   opportunityId: string;
@@ -113,18 +119,28 @@ export interface PortfolioHolding {
   investedAmount: number;
   currentValue: number;
   totalReturnsEarned: number;
+  /** Effective annual rate, set by the allocation's tier at purchase. */
   projectedReturnRate: number;
+  /** Tier the allocation fell into. */
+  tierId: InvestmentTierId;
+  /** Length of the lock-in, in months. */
+  lockMonths: number;
   /** ISO date (YYYY-MM-DD) so it can be formatted per locale. */
   investedDate: string;
-  maturityDate: string;
+  /**
+   * Capital cannot be redeemed before this date. This is the commitment
+   * the investor makes in exchange for the tier's rate.
+   */
+  unlockDate: string;
   nextDistributionDate: string;
-  status: 'Active' | 'Matured' | 'Pending';
+  status: HoldingStatus;
   riskLevel: RiskLevel;
 }
 
 export type TransactionType =
   | 'Investment'
   | 'Return Distribution'
+  | 'Redemption'
   | 'Deposit'
   | 'Withdrawal'
   | 'Referral Bonus';

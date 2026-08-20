@@ -99,10 +99,10 @@ export const AboutPage: React.FC = () => {
     },
     {
       icon: Layers,
-      title: { en: 'Access at 25,000 XAF', fr: 'Accès dès 25 000 XAF' },
+      title: { en: 'Access from 5,000 XAF', fr: 'Accès dès 5 000 XAF' },
       body: {
-        en: 'The same documentation and collateral structure whether you allocate 25,000 XAF or 25 million.',
-        fr: "La même documentation et la même structure de garantie, que vous allouiez 25 000 XAF ou 25 millions.",
+        en: 'The same documentation and collateral structure whether you allocate 5,000 XAF or 25 million. A larger allocation commits for longer and earns more, but the diligence behind it is identical.',
+        fr: "La même documentation et la même structure de garantie, que vous allouiez 5 000 XAF ou 25 millions. Une allocation plus importante s'engage plus longtemps et rapporte davantage, mais la diligence reste identique.",
       },
     },
   ];

@@ -166,8 +166,7 @@ const en = {
   'market.return.10to12': '10% – 12%',
   'market.return.gt12': 'Over 12%',
   'market.min.All': 'Any minimum',
-  'market.min.25k': '25,000 XAF or less',
-  'market.min.50k': '50,000 XAF or less',
+  'market.min.25k': '5,000 XAF or less',
   'market.min.100k': '100,000 XAF and above',
 
   // ---------------------------------------------------------------
@@ -555,7 +554,7 @@ const en = {
     'A transparent way to reach vetted, collateral-backed private market projects in Franc CFA — with the risks stated plainly.',
   'about.missionTitle': 'What we are building',
   'about.missionBody':
-    'Yield-bearing private market investments have historically demanded institutional minimums. GrowthFund exists to open that access at a 25,000 XAF ticket, with the same documentation, collateral structure and risk disclosure an institutional allocator would expect.',
+    'Yield-bearing private market investments have historically demanded institutional minimums. GrowthFund exists to open that access at a 5,000 XAF ticket, with the same documentation, collateral structure and risk disclosure an institutional allocator would expect.',
   'about.diligenceTitle': 'How offerings are vetted',
   'about.diligenceBody': 'Every listing passes the same six-stage review before it appears.',
   'about.principlesTitle': 'Operating principles',
@@ -564,7 +563,7 @@ const en = {
   'about.howBody': 'From first browse to your first distribution, in four steps.',
   'about.ctaTitle': 'Ready to explore the marketplace?',
   'about.ctaBody':
-    'Browse open offerings starting at 25,000 XAF, with full risk disclosure on every listing.',
+    'Browse open offerings starting at 5,000 XAF, with full risk disclosure on every listing.',
 
   // ---------------------------------------------------------------
   // Landing
@@ -573,7 +572,7 @@ const en = {
   'home.h1a': 'Private market investing,',
   'home.h1b': 'stated plainly.',
   'home.sub':
-    'Invest from 25,000 XAF in vetted private market projects — solar, agri-processing, commercial real estate — with transparent projected returns, Mobile Money cash-in and cash-out in multiples of 5,000 XAF.',
+    'Invest from 5,000 XAF in vetted private market projects — solar, agri-processing, commercial real estate — with transparent projected returns, Mobile Money cash-in and cash-out in multiples of 5,000 XAF.',
   'home.ctaExplore': 'Explore opportunities',
   'home.ctaCreate': 'Create a free account',
   'home.riskNotice': 'Important risk notice',
@@ -641,13 +640,13 @@ const en = {
     'Complete a short identity check to meet anti-money-laundering and investor-protection rules.',
   'home.step3': 'Allocate capital',
   'home.step3Body':
-    'Cash in with Mobile Money or bank transfer, then invest from 25,000 XAF per project.',
+    'Cash in with Mobile Money or bank transfer, then invest from 5,000 XAF per project.',
   'home.step4': 'Track and cash out',
   'home.step4Body':
     'Follow distributions in your dashboard and cash out in multiples of 5,000 XAF whenever you choose.',
   'home.finalCta': 'Ready to look at the offerings?',
   'home.finalCtaBody':
-    'Create your account, get your referral code, and browse verified offerings from 25,000 XAF.',
+    'Create your account, get your referral code, and browse verified offerings from 5,000 XAF.',
   'home.finalCtaNote':
     'All investments involve risk, including loss of principal. GrowthFund is a technology platform connecting investors with vetted private offerings.',
 
@@ -756,6 +755,82 @@ const en = {
   'toast.messageSent': 'Your message has been sent to support.',
   'toast.languageChanged': 'Language set to English.',
   'toast.region': 'Notifications',
+  // ---------------------------------------------------------------
+  // Allocation tiers & lock-in
+  // ---------------------------------------------------------------
+  'tier.label': 'Allocation tier',
+  'tier.starter': 'Starter',
+  'tier.growth': 'Growth',
+  'tier.premium': 'Premium',
+  'tier.elite': 'Elite',
+  'tier.yours': 'Your tier',
+  'tier.ladderTitle': 'How allocation size works',
+  'tier.ladderBody':
+    'A larger allocation commits your capital for longer, and earns a higher rate within the offering\u2019s quoted band. Every tier stays inside the range the project itself advertises.',
+  'tier.amountFrom': 'From {{amount}}',
+  'tier.amountRange': '{{from}} – {{to}}',
+  'tier.lockColumn': 'Locked for',
+  'tier.rateColumn': 'Rate earned',
+  'tier.rateMin': 'Band minimum',
+  'tier.rateMax': 'Band maximum',
+  'tier.rateMid': '{{percent}} of band',
+  'tier.months': '{{count}} months',
+  'tier.months_one': '1 month',
+  'tier.years_one': '1 year',
+  'tier.years': '{{count}} years',
+  'tier.nextUp': 'Add {{amount}} to reach {{tier}}: {{months}} months locked at {{rate}}.',
+  'tier.atTop': 'You are at the highest tier.',
+
+  'lock.title': 'Lock-in period',
+  'lock.explainer':
+    'Invested capital cannot be withdrawn before its unlock date. This commitment is what earns the tier rate.',
+  'lock.yourTerm': 'Your commitment',
+  'lock.unlocksOn': 'Unlocks {{date}}',
+  'lock.unlockedOn': 'Unlocked {{date}}',
+  'lock.daysRemaining': '{{count}} days remaining',
+  'lock.dayRemaining': '1 day remaining',
+  'lock.available': 'Available to withdraw',
+  'lock.locked': 'Locked',
+  'lock.redeemed': 'Redeemed',
+  'lock.progress': '{{percent}}% of term elapsed',
+  'lock.redeem': 'Redeem to cash balance',
+  'lock.redeemHint': 'Returns {{amount}} to your available balance',
+  'lock.cannotRedeem': 'Locked until {{date}}',
+  'lock.confirmTitle': 'Redeem this holding?',
+  'lock.confirmBody':
+    '{{amount}} moves from this holding into your cash balance, and the position closes. This cannot be undone.',
+  'lock.confirmCta': 'Redeem {{amount}}',
+  'lock.noticeInvest':
+    'Committing {{amount}} locks it for {{months}} months, until {{date}}. It cannot be withdrawn before then.',
+
+  'dash.lockedCapital': 'Locked capital',
+  'dash.lockedCapitalHint': '{{count}} holdings still inside their term',
+  'dash.unlockedCapital': '{{amount}} ready to redeem',
+  'dash.nothingUnlocked': 'Nothing unlocked yet',
+  'dash.tierBadge': '{{tier}} · {{term}}',
+
+  'invest.tierNow': '{{tier}} tier',
+  'invest.lockNow': 'Locked {{months}} months',
+  'invest.rateNow': 'Earns {{rate}}',
+  'invest.unlockOn': 'Unlocks on {{date}}',
+  'invest.totalAtUnlock': 'Projected value at unlock',
+  'invest.yieldOverTerm': 'Projected yield over the term',
+  'invest.stepHint': 'Allocations are in multiples of {{amount}}.',
+  'invest.tierUpsell': 'Invest {{amount}} more to reach the {{tier}} tier ({{rate}}).',
+
+  'toast.investStep': 'Allocations must be a multiple of {{amount}}.',
+  'toast.holdingLocked': 'This holding is locked until {{date}} and cannot be redeemed yet.',
+  'toast.redeemed': 'Redeemed {{amount}} from {{name}} into your cash balance.',
+  'tx.Redemption': 'Redemption',
+  'wallet.lockedExcluded': '{{amount}} is locked in active holdings and is not withdrawable.',
+  'detail.gallery': 'Project photographs',
+  'detail.galleryImage': 'Show photograph {{index}}',
+  'detail.tierTitle': 'What your allocation earns',
+  'home.calcLockNote':
+    'The commitment term follows the amount: a larger allocation locks for longer and earns a higher rate within the offering\u2019s band.',
+  'home.tierTitle': 'Invest more, earn more, commit for longer',
+  'home.tierBody':
+    'Allocations start at 5,000 XAF. Each tier locks your capital for a set term and earns a higher rate in exchange \u2014 capital cannot be withdrawn before its unlock date.',
 } as const;
 
 export type TranslationKey = keyof typeof en;
@@ -913,8 +988,7 @@ const fr: Translations = {
   'market.return.10to12': '10 % – 12 %',
   'market.return.gt12': 'Plus de 12 %',
   'market.min.All': 'Tout minimum',
-  'market.min.25k': '25 000 XAF ou moins',
-  'market.min.50k': '50 000 XAF ou moins',
+  'market.min.25k': '5 000 XAF ou moins',
   'market.min.100k': '100 000 XAF et plus',
 
   // Opportunity
@@ -1290,7 +1364,7 @@ const fr: Translations = {
     "Un accès transparent à des projets de marché privé vérifiés et adossés à des garanties, en Franc CFA — avec les risques énoncés clairement.",
   'about.missionTitle': 'Ce que nous construisons',
   'about.missionBody':
-    "Les placements privés à rendement ont longtemps exigé des tickets institutionnels. GrowthFund ouvre cet accès dès 25 000 XAF, avec la même documentation, la même structure de garantie et le même niveau d'information sur les risques qu'attendrait un allocataire institutionnel.",
+    "Les placements privés à rendement ont longtemps exigé des tickets institutionnels. GrowthFund ouvre cet accès dès 5 000 XAF, avec la même documentation, la même structure de garantie et le même niveau d'information sur les risques qu'attendrait un allocataire institutionnel.",
   'about.diligenceTitle': 'Comment les offres sont vérifiées',
   'about.diligenceBody':
     'Chaque offre passe le même examen en six étapes avant sa publication.',
@@ -1302,14 +1376,14 @@ const fr: Translations = {
     'De la première consultation à votre première distribution, en quatre étapes.',
   'about.ctaTitle': 'Prêt à explorer la place de marché ?',
   'about.ctaBody':
-    "Parcourez les offres ouvertes à partir de 25 000 XAF, avec une information complète sur les risques.",
+    "Parcourez les offres ouvertes à partir de 5 000 XAF, avec une information complète sur les risques.",
 
   // Landing
   'home.badge': 'Investissement alternatif en Franc CFA',
   'home.h1a': 'Le marché privé,',
   'home.h1b': 'expliqué sans détour.',
   'home.sub':
-    "Investissez dès 25 000 XAF dans des projets de marché privé vérifiés — solaire, agro-industrie, immobilier commercial — avec des rendements projetés transparents, un dépôt par Mobile Money et un retrait par multiples de 5 000 XAF.",
+    "Investissez dès 5 000 XAF dans des projets de marché privé vérifiés — solaire, agro-industrie, immobilier commercial — avec des rendements projetés transparents, un dépôt par Mobile Money et un retrait par multiples de 5 000 XAF.",
   'home.ctaExplore': 'Explorer les opportunités',
   'home.ctaCreate': 'Créer un compte gratuit',
   'home.riskNotice': 'Avertissement important',
@@ -1378,13 +1452,13 @@ const fr: Translations = {
     "Effectuez un contrôle d'identité rapide, conforme aux règles anti-blanchiment et de protection des investisseurs.",
   'home.step3': 'Allouez votre capital',
   'home.step3Body':
-    'Approvisionnez par Mobile Money ou virement, puis investissez dès 25 000 XAF par projet.',
+    'Approvisionnez par Mobile Money ou virement, puis investissez dès 5 000 XAF par projet.',
   'home.step4': 'Suivez et retirez',
   'home.step4Body':
     'Suivez vos distributions dans votre tableau de bord et retirez par multiples de 5 000 XAF quand vous le souhaitez.',
   'home.finalCta': 'Prêt à consulter les offres ?',
   'home.finalCtaBody':
-    'Créez votre compte, obtenez votre code de parrainage et parcourez les offres vérifiées dès 25 000 XAF.',
+    'Créez votre compte, obtenez votre code de parrainage et parcourez les offres vérifiées dès 5 000 XAF.',
   'home.finalCtaNote':
     "Tout investissement comporte un risque, y compris la perte du capital. GrowthFund est une plateforme technologique mettant en relation investisseurs et offres privées vérifiées.",
 
@@ -1487,6 +1561,84 @@ const fr: Translations = {
   'toast.messageSent': "Votre message a été envoyé à l'assistance.",
   'toast.languageChanged': 'Langue définie sur le français.',
   'toast.region': 'Notifications',
+  // Allocation tiers & lock-in
+  'tier.label': 'Palier d\u2019allocation',
+  'tier.starter': 'D\u00e9couverte',
+  'tier.growth': 'Croissance',
+  'tier.premium': 'Premium',
+  'tier.elite': '\u00c9lite',
+  'tier.yours': 'Votre palier',
+  'tier.ladderTitle': 'Comment fonctionne le montant investi',
+  'tier.ladderBody':
+    'Une allocation plus importante engage votre capital plus longtemps et per\u00e7oit un taux plus \u00e9lev\u00e9 dans la fourchette annonc\u00e9e par l\u2019offre. Chaque palier reste dans la fourchette que le projet lui-m\u00eame affiche.',
+  'tier.amountFrom': '\u00c0 partir de {{amount}}',
+  'tier.amountRange': '{{from}} – {{to}}',
+  'tier.lockColumn': 'Bloqu\u00e9 pendant',
+  'tier.rateColumn': 'Taux per\u00e7u',
+  'tier.rateMin': 'Bas de fourchette',
+  'tier.rateMax': 'Haut de fourchette',
+  'tier.rateMid': '{{percent}} de la fourchette',
+  'tier.months': '{{count}} mois',
+  'tier.months_one': '1 mois',
+  'tier.years_one': '1 an',
+  'tier.years': '{{count}} ans',
+  'tier.nextUp':
+    'Ajoutez {{amount}} pour atteindre {{tier}} : {{months}} mois de blocage \u00e0 {{rate}}.',
+  'tier.atTop': 'Vous \u00eates au palier le plus \u00e9lev\u00e9.',
+
+  'lock.title': 'P\u00e9riode de blocage',
+  'lock.explainer':
+    'Le capital investi ne peut pas \u00eatre retir\u00e9 avant sa date de d\u00e9blocage. C\u2019est cet engagement qui donne droit au taux du palier.',
+  'lock.yourTerm': 'Votre engagement',
+  'lock.unlocksOn': 'D\u00e9blocage le {{date}}',
+  'lock.unlockedOn': 'D\u00e9bloqu\u00e9 le {{date}}',
+  'lock.daysRemaining': '{{count}} jours restants',
+  'lock.dayRemaining': '1 jour restant',
+  'lock.available': 'Disponible au retrait',
+  'lock.locked': 'Bloqu\u00e9',
+  'lock.redeemed': 'Rembours\u00e9',
+  'lock.progress': '{{percent}} % de la dur\u00e9e \u00e9coul\u00e9e',
+  'lock.redeem': 'R\u00e9cup\u00e9rer sur le solde',
+  'lock.redeemHint': 'Reverse {{amount}} sur votre solde disponible',
+  'lock.cannotRedeem': 'Bloqu\u00e9 jusqu\u2019au {{date}}',
+  'lock.confirmTitle': 'R\u00e9cup\u00e9rer cette position ?',
+  'lock.confirmBody':
+    '{{amount}} passent de cette position \u00e0 votre solde disponible, et la position se cl\u00f4ture. Cette action est irr\u00e9versible.',
+  'lock.confirmCta': 'R\u00e9cup\u00e9rer {{amount}}',
+  'lock.noticeInvest':
+    'Engager {{amount}} les bloque pendant {{months}} mois, jusqu\u2019au {{date}}. Ils ne pourront pas \u00eatre retir\u00e9s avant.',
+
+  'dash.lockedCapital': 'Capital bloqu\u00e9',
+  'dash.lockedCapitalHint': '{{count}} positions encore dans leur dur\u00e9e',
+  'dash.unlockedCapital': '{{amount}} pr\u00eats \u00e0 r\u00e9cup\u00e9rer',
+  'dash.nothingUnlocked': 'Rien de d\u00e9bloqu\u00e9 pour l\u2019instant',
+  'dash.tierBadge': '{{tier}} \u00b7 {{term}}',
+
+  'invest.tierNow': 'Palier {{tier}}',
+  'invest.lockNow': 'Bloqu\u00e9 {{months}} mois',
+  'invest.rateNow': 'Rapporte {{rate}}',
+  'invest.unlockOn': 'D\u00e9blocage le {{date}}',
+  'invest.totalAtUnlock': 'Valeur projet\u00e9e au d\u00e9blocage',
+  'invest.yieldOverTerm': 'Rendement projet\u00e9 sur la dur\u00e9e',
+  'invest.stepHint': 'Les allocations se font par multiples de {{amount}}.',
+  'invest.tierUpsell':
+    'Investissez {{amount}} de plus pour atteindre le palier {{tier}} ({{rate}}).',
+
+  'toast.investStep': 'Les allocations doivent \u00eatre un multiple de {{amount}}.',
+  'toast.holdingLocked':
+    'Cette position est bloqu\u00e9e jusqu\u2019au {{date}} et ne peut pas encore \u00eatre r\u00e9cup\u00e9r\u00e9e.',
+  'toast.redeemed': '{{amount}} r\u00e9cup\u00e9r\u00e9s depuis {{name}} sur votre solde disponible.',
+  'tx.Redemption': 'Remboursement',
+  'wallet.lockedExcluded':
+    '{{amount}} sont bloqu\u00e9s dans des positions actives et ne sont pas retirables.',
+  'detail.gallery': 'Photographies du projet',
+  'detail.galleryImage': 'Afficher la photographie {{index}}',
+  'detail.tierTitle': 'Ce que rapporte votre allocation',
+  'home.calcLockNote':
+    'La dur\u00e9e d\u2019engagement d\u00e9coule du montant : une allocation plus importante se bloque plus longtemps et per\u00e7oit un taux plus \u00e9lev\u00e9 dans la fourchette de l\u2019offre.',
+  'home.tierTitle': 'Investissez plus, gagnez plus, engagez-vous plus longtemps',
+  'home.tierBody':
+    'Les allocations commencent \u00e0 5 000 XAF. Chaque palier bloque votre capital pour une dur\u00e9e donn\u00e9e et per\u00e7oit en contrepartie un taux plus \u00e9lev\u00e9 \u2014 le capital ne peut pas \u00eatre retir\u00e9 avant sa date de d\u00e9blocage.',
 };
 
 export const dictionaries: Record<Language, Translations> = {

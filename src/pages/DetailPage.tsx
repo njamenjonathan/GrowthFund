@@ -22,6 +22,14 @@ import {
   YAxis,
 } from 'recharts';
 import { useApp } from '../context/AppContext';
+import { OpportunityImage } from '../components/OpportunityImage';
+import { TierLadder } from '../components/TierLadder';
+import {
+  MIN_INVESTMENT,
+  effectiveRate,
+  lockMonthsFor,
+  tierForAmount,
+} from '../lib/investmentTiers';
 import { useI18n } from '../i18n/LanguageContext';
 import { TranslationKey } from '../i18n/translations';
 import {
@@ -61,7 +69,8 @@ export const DetailPage: React.FC = () => {
   } = useApp();
 
   const [activeTab, setActiveTab] = useState<Tab>('overview');
-  const [simulationAmount, setSimulationAmount] = useState(50_000);
+  const [simulationAmount, setSimulationAmount] = useState(MIN_INVESTMENT);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   const opportunity = opportunities.find((item) => item.id === selectedOpportunityId);
 
@@ -93,13 +102,26 @@ export const DetailPage: React.FC = () => {
     );
   }
 
+  // Hero first, then the gallery; de-duplicated in case a URL repeats.
+  const gallery = Array.from(new Set([opportunity.imageUrl, ...opportunity.galleryImages]));
+  const activeImage = selectedImage && gallery.includes(selectedImage) ? selectedImage : gallery[0];
+  const setActiveImage = setSelectedImage;
+
+  const simulationTier = tierForAmount(simulationAmount);
+  const simulationLockMonths = lockMonthsFor(simulationAmount);
+  const simulationRate = effectiveRate(
+    simulationAmount,
+    opportunity.projectedReturnMin,
+    opportunity.projectedReturnMax,
+  );
+  const simulationAnnual = (simulationAmount * simulationRate) / 100;
+
   const isSaved = savedOpportunityIds.includes(opportunity.id);
   const percentFunded = Math.min(
     100,
     Math.round((opportunity.amountRaised / opportunity.fundingGoal) * 100),
   );
   const title = tr(opportunity.title);
-  const annualIncome = (simulationAmount * averageYield) / 100;
 
   const handleShare = async () => {
     // The hash router means this URL actually reopens this opportunity;
@@ -201,12 +223,12 @@ export const DetailPage: React.FC = () => {
           </header>
 
           <div className="relative rounded-3xl overflow-hidden h-56 sm:h-80 w-full bg-slate-100 dark:bg-slate-800">
-            <img
-              src={opportunity.imageUrl}
-              alt=""
-              className="w-full h-full object-cover"
-              referrerPolicy="no-referrer"
-              decoding="async"
+            <OpportunityImage
+              src={activeImage}
+              category={opportunity.category}
+              seed={opportunity.id}
+              loading="eager"
+              className="w-full h-full"
             />
             <div
               aria-hidden="true"
@@ -222,6 +244,39 @@ export const DetailPage: React.FC = () => {
               </span>
             </p>
           </div>
+
+          {gallery.length > 1 && (
+            <div
+              role="group"
+              aria-label={t('detail.gallery')}
+              className="flex gap-2.5 overflow-x-auto scrollbar-none -mt-4"
+            >
+              {gallery.map((image, index) => {
+                const isActive = image === activeImage;
+                return (
+                  <button
+                    key={image}
+                    type="button"
+                    onClick={() => setActiveImage(image)}
+                    aria-pressed={isActive}
+                    aria-label={t('detail.galleryImage', { index: index + 1 })}
+                    className={`shrink-0 rounded-xl overflow-hidden border-2 transition-colors ${
+                      isActive
+                        ? 'border-emerald-600 dark:border-emerald-400'
+                        : 'border-transparent hover:border-slate-300 dark:hover:border-slate-600'
+                    }`}
+                  >
+                    <OpportunityImage
+                      src={image}
+                      category={opportunity.category}
+                      seed={`${opportunity.id}-${index}`}
+                      className="w-24 h-16"
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           <div className="bg-red-50/90 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-2xl p-5 text-xs text-red-900 dark:text-red-200 space-y-2">
             <p className="flex items-center gap-2 font-bold text-red-800 dark:text-red-300">
@@ -330,6 +385,22 @@ export const DetailPage: React.FC = () => {
                         </div>
                       ))}
                     </dl>
+                  </section>
+
+                  {/* The tier rule belongs on the offering itself, not only
+                      inside the invest dialog: it changes what the quoted
+                      yield band actually means for a given allocation. */}
+                  <section className="space-y-3">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+                      {t('detail.tierTitle')}
+                    </h3>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+                      {t('tier.ladderBody')}
+                    </p>
+                    <TierLadder
+                      projectedReturnMin={opportunity.projectedReturnMin}
+                      projectedReturnMax={opportunity.projectedReturnMax}
+                    />
                   </section>
 
                   <section className="space-y-3">
@@ -765,8 +836,8 @@ export const DetailPage: React.FC = () => {
                 <input
                   id="detail-simulation"
                   type="number"
-                  step={5_000}
-                  min={opportunity.minInvestment}
+                  step={1_000}
+                  min={Math.max(opportunity.minInvestment, MIN_INVESTMENT)}
                   value={simulationAmount}
                   onChange={(event) =>
                     setSimulationAmount(Math.max(0, Number(event.target.value) || 0))
@@ -780,13 +851,28 @@ export const DetailPage: React.FC = () => {
                   XAF
                 </span>
               </div>
-              <p className="flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                <span>{t('detail.estAnnualPayout')}</span>
-                <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400">
-                  ~{formatFCFA(annualIncome, language)}
-                  {t('common.perYear')}
-                </span>
-              </p>
+              <dl className="space-y-1 text-[11px] text-slate-600 dark:text-slate-400">
+                <div className="flex justify-between gap-2">
+                  <dt>{t('tier.yours')}</dt>
+                  <dd className="font-bold text-slate-900 dark:text-white">
+                    {tr(simulationTier.name)} ·{' '}
+                    {t('tier.months', { count: simulationLockMonths })}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt>{t('invest.targetRate')}</dt>
+                  <dd className="font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                    {formatPercent(simulationRate, language)}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-2">
+                  <dt>{t('detail.estAnnualPayout')}</dt>
+                  <dd className="font-mono font-bold text-emerald-700 dark:text-emerald-400">
+                    ~{formatFCFA(simulationAnnual, language)}
+                    {t('common.perYear')}
+                  </dd>
+                </div>
+              </dl>
             </div>
 
             <button

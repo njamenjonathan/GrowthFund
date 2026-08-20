@@ -16,6 +16,7 @@ import { Modal } from './Modal';
 import { useApp } from '../context/AppContext';
 import { useI18n } from '../i18n/LanguageContext';
 import { formatFCFA } from '../utils/format';
+import { hasReached } from '../lib/investmentTiers';
 
 const MIN_WITHDRAWAL = 5_000;
 const WITHDRAWAL_STEP = 5_000;
@@ -34,7 +35,12 @@ const PAYMENT_METHODS = [
 
 export const DepositWithdrawModal: React.FC = () => {
   const { t, language } = useI18n();
-  const { activeModal, closeModal, user, executeDeposit, executeWithdrawal } = useApp();
+  const { activeModal, closeModal, user, holdings, executeDeposit, executeWithdrawal } = useApp();
+
+  // Capital still inside a lock-in term is not withdrawable cash.
+  const lockedCapital = holdings
+    .filter((holding) => holding.status !== 'Redeemed' && !hasReached(holding.unlockDate))
+    .reduce((sum, holding) => sum + holding.currentValue, 0);
 
   const isDeposit = activeModal === 'deposit';
   const isOpen = isDeposit || activeModal === 'withdraw';
@@ -121,15 +127,35 @@ export const DepositWithdrawModal: React.FC = () => {
     >
       <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-5 text-xs max-h-[70vh] overflow-y-auto">
         {!isDeposit && (
-          <div className="p-3.5 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 text-blue-900 dark:text-blue-200 space-y-1">
-            <p className="flex items-center gap-1.5 font-bold">
-              <Info className="w-4 h-4 shrink-0" aria-hidden="true" />
-              {t('wallet.withdrawRule')}
-            </p>
-            <p className="text-[11px] leading-relaxed text-blue-800 dark:text-blue-300">
-              {t('wallet.withdrawRuleBody')}
-            </p>
-          </div>
+          <>
+            <div className="p-3.5 rounded-2xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800/60 text-blue-900 dark:text-blue-200 space-y-1">
+              <p className="flex items-center gap-1.5 font-bold">
+                <Info className="w-4 h-4 shrink-0" aria-hidden="true" />
+                {t('wallet.withdrawRule')}
+              </p>
+              <p className="text-[11px] leading-relaxed text-blue-800 dark:text-blue-300">
+                {t('wallet.withdrawRuleBody')}
+              </p>
+            </div>
+
+            {/*
+              Without this, a user holding millions in locked positions but
+              a small cash balance would read the limit as a bug.
+            */}
+            {lockedCapital > 0 && (
+              <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 space-y-1">
+                <p className="flex items-center gap-1.5 font-bold">
+                  <Lock className="w-4 h-4 shrink-0" aria-hidden="true" />
+                  {t('wallet.lockedExcluded', {
+                    amount: formatFCFA(lockedCapital, language),
+                  })}
+                </p>
+                <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-300">
+                  {t('lock.explainer')}
+                </p>
+              </div>
+            )}
+          </>
         )}
 
         <div>

@@ -1,3 +1,4 @@
+import { MIN_INVESTMENT } from '../lib/investmentTiers';
 import {
   FaqItem,
   InvestmentOpportunity,
@@ -68,6 +69,11 @@ export const MONTH_LABELS: Record<string, { en: string; fr: string }> = {
   dec: { en: 'Dec', fr: 'déc.' },
 };
 
+/*
+ * Seeded holdings deliberately span the lock lifecycle so the dashboard
+ * shows all three states out of the box: one still locked for years, one
+ * unlocking shortly, and one already redeemable.
+ */
 export const INITIAL_HOLDINGS: PortfolioHolding[] = [
   {
     id: 'hold-1',
@@ -77,11 +83,13 @@ export const INITIAL_HOLDINGS: PortfolioHolding[] = [
     investedAmount: 2_500_000,
     currentValue: 2_715_000,
     totalReturnsEarned: 215_000,
-    projectedReturnRate: 9.8,
+    projectedReturnRate: 10.2,
+    tierId: 'elite',
+    lockMonths: 48,
     investedDate: '2024-04-12',
-    maturityDate: '2028-04-12',
+    unlockDate: '2028-04-12',
     nextDistributionDate: '2026-12-15',
-    status: 'Active',
+    status: 'Locked',
     riskLevel: 'Medium',
   },
   {
@@ -89,14 +97,16 @@ export const INITIAL_HOLDINGS: PortfolioHolding[] = [
     opportunityId: 'opp-agritech',
     opportunityTitle: { en: 'Vertical Farming Expansion — Phase II', fr: 'Extension de ferme verticale — phase II' },
     category: 'Agriculture',
-    investedAmount: 2_000_000,
-    currentValue: 2_186_000,
-    totalReturnsEarned: 186_000,
-    projectedReturnRate: 9.4,
-    investedDate: '2024-06-03',
-    maturityDate: '2028-06-03',
-    nextDistributionDate: '2027-01-31',
-    status: 'Active',
+    investedAmount: 300_000,
+    currentValue: 327_900,
+    totalReturnsEarned: 27_900,
+    projectedReturnRate: 9.6,
+    tierId: 'premium',
+    lockMonths: 24,
+    investedDate: '2024-11-03',
+    unlockDate: '2026-11-03',
+    nextDistributionDate: '2026-11-03',
+    status: 'Locked',
     riskLevel: 'Medium',
   },
   {
@@ -104,14 +114,16 @@ export const INITIAL_HOLDINGS: PortfolioHolding[] = [
     opportunityId: 'opp-commercial-hub',
     opportunityTitle: { en: 'Downtown Commercial Hub', fr: 'Pôle commercial du centre-ville' },
     category: 'Real Estate',
-    investedAmount: 2_000_000,
-    currentValue: 2_179_000,
-    totalReturnsEarned: 179_000,
-    projectedReturnRate: 8.9,
-    investedDate: '2024-07-22',
-    maturityDate: '2029-07-22',
-    nextDistributionDate: '2026-12-31',
-    status: 'Active',
+    investedAmount: 120_000,
+    currentValue: 129_360,
+    totalReturnsEarned: 9_360,
+    projectedReturnRate: 8.3,
+    tierId: 'growth',
+    lockMonths: 12,
+    investedDate: '2025-06-20',
+    unlockDate: '2026-06-20',
+    nextDistributionDate: '2026-06-20',
+    status: 'Unlocked',
     riskLevel: 'Low',
   },
 ];
@@ -189,7 +201,7 @@ export const OPPORTUNITIES: InvestmentOpportunity[] = [
     category: 'Energy',
     location: { en: 'Sahel clean power corridor', fr: 'Corridor énergétique du Sahel' },
     riskLevel: 'Medium',
-    minInvestment: 25_000,
+    minInvestment: MIN_INVESTMENT,
     fundingGoal: 450_000_000,
     amountRaised: 345_000_000,
     investorsCount: 412,
@@ -215,6 +227,10 @@ export const OPPORTUNITIES: InvestmentOpportunity[] = [
     escrowAgent: { en: 'Independent escrow custodian', fr: 'Dépositaire séquestre indépendant' },
     imageUrl:
       'https://images.unsplash.com/photo-1509391365360-2e959784a276?auto=format&fit=crop&w=1200&q=80',
+    galleryImages: [
+      'https://images.unsplash.com/photo-1497440001374-f26997328c1b?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1473341304170-971dccb5ac1e?auto=format&fit=crop&w=900&q=80',
+    ],
     overview: {
       en: 'A utility-scale solar generation facility engineered for reliable baseload clean energy, underpinned by a 15-year power purchase agreement with regional industrial off-takers. Capital raised funds the final photovoltaic deployment and the grid interconnection.',
       fr: "Centrale solaire à l'échelle réseau conçue pour fournir une énergie propre de base fiable, soutenue par un contrat d'achat d'électricité de 15 ans avec des industriels régionaux. Les fonds levés financent le déploiement photovoltaïque final et le raccordement au réseau.",
@@ -310,7 +326,7 @@ export const OPPORTUNITIES: InvestmentOpportunity[] = [
     category: 'Agriculture',
     location: { en: 'Abidjan agro-industrial park', fr: "Parc agro-industriel d'Abidjan" },
     riskLevel: 'Medium',
-    minInvestment: 25_000,
+    minInvestment: MIN_INVESTMENT,
     fundingGoal: 300_000_000,
     amountRaised: 235_000_000,
     investorsCount: 328,
@@ -336,6 +352,10 @@ export const OPPORTUNITIES: InvestmentOpportunity[] = [
     escrowAgent: { en: 'Independent escrow custodian', fr: 'Dépositaire séquestre indépendant' },
     imageUrl:
       'https://images.unsplash.com/photo-1585320806297-9794b3e4eeae?auto=format&fit=crop&w=1200&q=80',
+    galleryImages: [
+      'https://images.unsplash.com/photo-1530836369250-ef72a3f5cda8?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1416879595882-3373a0480b5b?auto=format&fit=crop&w=900&q=80',
+    ],
     overview: {
       en: 'Expansion of a high-technology indoor hydroponic facility producing vegetables and premium crops year-round under climate control, with no pesticide use and a fraction of the water demand of open-field farming.',
       fr: "Extension d'une unité hydroponique de haute technologie produisant toute l'année légumes et cultures premium sous climat contrôlé, sans pesticides et avec une fraction de la consommation d'eau de la culture en plein champ.",
@@ -427,7 +447,7 @@ export const OPPORTUNITIES: InvestmentOpportunity[] = [
     category: 'Real Estate',
     location: { en: 'Douala central business district', fr: "Quartier des affaires de Douala" },
     riskLevel: 'Low',
-    minInvestment: 50_000,
+    minInvestment: MIN_INVESTMENT,
     fundingGoal: 800_000_000,
     amountRaised: 612_000_000,
     investorsCount: 587,
@@ -453,6 +473,10 @@ export const OPPORTUNITIES: InvestmentOpportunity[] = [
     escrowAgent: { en: 'Independent escrow custodian', fr: 'Dépositaire séquestre indépendant' },
     imageUrl:
       'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=1200&q=80',
+    galleryImages: [
+      'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1554469384-e58fac16e23a?auto=format&fit=crop&w=900&q=80',
+    ],
     overview: {
       en: 'A premium commercial hub combining modern offices, banking halls and secure transit warehousing. 72% of lettable area is pre-leased to regional and multinational tenants on long-term agreements.',
       fr: "Pôle commercial haut de gamme réunissant bureaux modernes, agences bancaires et entrepôts de transit sécurisés. 72 % de la surface locative est pré-louée à des locataires régionaux et multinationaux sous baux de longue durée.",
@@ -545,7 +569,7 @@ export const OPPORTUNITIES: InvestmentOpportunity[] = [
     category: 'Infrastructure',
     location: { en: 'Northern grid interconnect', fr: 'Interconnexion du réseau nord' },
     riskLevel: 'Medium',
-    minInvestment: 50_000,
+    minInvestment: MIN_INVESTMENT,
     fundingGoal: 620_000_000,
     amountRaised: 291_000_000,
     investorsCount: 214,
@@ -571,6 +595,10 @@ export const OPPORTUNITIES: InvestmentOpportunity[] = [
     escrowAgent: { en: 'Independent escrow custodian', fr: 'Dépositaire séquestre indépendant' },
     imageUrl:
       'https://images.unsplash.com/photo-1466611653911-95081537e5b7?auto=format&fit=crop&w=1200&q=80',
+    galleryImages: [
+      'https://images.unsplash.com/photo-1509391366360-2e959784a276?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1548337138-e87d889cc369?auto=format&fit=crop&w=900&q=80',
+    ],
     overview: {
       en: 'This project pairs 40 MW of solar capacity with lithium battery storage so that generated energy can be dispatched during the evening demand peak, when contracted wholesale tariffs are at their highest.',
       fr: "Ce projet associe 40 MW de capacité solaire à un stockage par batteries lithium afin de restituer l'énergie produite pendant la pointe de demande du soir, lorsque les tarifs de gros contractés sont les plus élevés.",
@@ -650,7 +678,7 @@ export const OPPORTUNITIES: InvestmentOpportunity[] = [
     category: 'Technology',
     location: { en: 'Douala technology corridor', fr: 'Corridor technologique de Douala' },
     riskLevel: 'High',
-    minInvestment: 100_000,
+    minInvestment: MIN_INVESTMENT,
     fundingGoal: 950_000_000,
     amountRaised: 402_000_000,
     investorsCount: 176,
@@ -676,6 +704,10 @@ export const OPPORTUNITIES: InvestmentOpportunity[] = [
     escrowAgent: { en: 'Independent escrow custodian', fr: 'Dépositaire séquestre indépendant' },
     imageUrl:
       'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?auto=format&fit=crop&w=1200&q=80',
+    galleryImages: [
+      'https://images.unsplash.com/photo-1591370874773-6702e8f12fd8?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=900&q=80',
+    ],
     overview: {
       en: 'A carrier-neutral Tier III colocation facility offering redundant power and cooling to regional banks, telecom operators and public institutions that currently host critical systems abroad.',
       fr: "Installation de colocation Tier III neutre offrant alimentation et refroidissement redondants aux banques, opérateurs télécoms et institutions publiques régionales qui hébergent aujourd'hui leurs systèmes critiques à l'étranger.",
@@ -767,7 +799,7 @@ export const OPPORTUNITIES: InvestmentOpportunity[] = [
     category: 'Healthcare',
     location: { en: 'Secondary cities network', fr: 'Réseau de villes secondaires' },
     riskLevel: 'Medium',
-    minInvestment: 25_000,
+    minInvestment: MIN_INVESTMENT,
     fundingGoal: 380_000_000,
     amountRaised: 361_000_000,
     investorsCount: 640,
@@ -793,6 +825,10 @@ export const OPPORTUNITIES: InvestmentOpportunity[] = [
     escrowAgent: { en: 'Independent escrow custodian', fr: 'Dépositaire séquestre indépendant' },
     imageUrl:
       'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?auto=format&fit=crop&w=1200&q=80',
+    galleryImages: [
+      'https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=900&q=80',
+      'https://images.unsplash.com/photo-1581056771107-24ca5f033842?auto=format&fit=crop&w=900&q=80',
+    ],
     overview: {
       en: 'Roll-out of a network of diagnostic imaging and laboratory clinics in secondary cities where patients currently travel several hours for basic scans and tests. Capital funds equipment and clinic fit-out.',
       fr: "Déploiement d'un réseau de cliniques d'imagerie et de laboratoire dans des villes secondaires où les patients parcourent aujourd'hui plusieurs heures pour des examens de base. Le capital finance les équipements et l'aménagement des cliniques.",
@@ -872,8 +908,8 @@ export const FAQ_DATA: FaqItem[] = [
       fr: 'Qu’est-ce que GrowthFund et comment cela fonctionne-t-il ?',
     },
     answer: {
-      en: 'GrowthFund connects investors with vetted private market projects across renewable energy, infrastructure, commercial real estate, healthcare and agriculture, denominated in Franc CFA (XAF). You can browse opportunities, read the offering documents, invest from 25,000 XAF, cash in and out, and track projected distributions from your dashboard.',
-      fr: "GrowthFund met en relation des investisseurs avec des projets de marché privé vérifiés dans les énergies renouvelables, les infrastructures, l'immobilier commercial, la santé et l'agriculture, libellés en Franc CFA (XAF). Vous pouvez parcourir les offres, consulter les documents, investir dès 25 000 XAF, approvisionner et retirer, et suivre vos distributions projetées depuis votre tableau de bord.",
+      en: 'GrowthFund connects investors with vetted private market projects across renewable energy, infrastructure, commercial real estate, healthcare and agriculture, denominated in Franc CFA (XAF). You can browse opportunities, read the offering documents, invest from 5,000 XAF, cash in and out, and track projected distributions from your dashboard.',
+      fr: "GrowthFund met en relation des investisseurs avec des projets de marché privé vérifiés dans les énergies renouvelables, les infrastructures, l'immobilier commercial, la santé et l'agriculture, libellés en Franc CFA (XAF). Vous pouvez parcourir les offres, consulter les documents, investir dès 5 000 XAF, approvisionner et retirer, et suivre vos distributions projetées depuis votre tableau de bord.",
     },
   },
   {
