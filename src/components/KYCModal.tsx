@@ -1,362 +1,438 @@
-import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
-import { 
-  X, 
-  ShieldCheck, 
-  CheckCircle2, 
-  Upload, 
-  FileText, 
-  UserCheck, 
-  AlertCircle, 
-  ArrowRight,
+import React, { useEffect, useState } from 'react';
+import {
   ArrowLeft,
-  Lock
+  ArrowRight,
+  CheckCircle2,
+  FileText,
+  Lock,
+  ShieldCheck,
+  Upload,
 } from 'lucide-react';
+import { Modal } from './Modal';
+import { useApp } from '../context/AppContext';
+import { useI18n } from '../i18n/LanguageContext';
+import { formatFCFA } from '../utils/format';
+
+const TOTAL_STEPS = 4;
+
+/** XAF income and net-worth bands, replacing the previous USD/SEC brackets. */
+const INCOME_BANDS = ['< 2 000 000', '2 000 000 – 6 000 000', '6 000 000 – 15 000 000', '> 15 000 000'];
+const NET_WORTH_BANDS = ['< 5 000 000', '5 000 000 – 25 000 000', '25 000 000 – 100 000 000', '> 100 000 000'];
+
+const COUNTRIES = [
+  'Cameroun / Cameroon',
+  "Côte d'Ivoire",
+  'Sénégal / Senegal',
+  'Gabon',
+  'Bénin / Benin',
+  'Burkina Faso',
+  'Mali',
+  'Tchad / Chad',
+  'Togo',
+  'Congo',
+];
 
 export const KYCModal: React.FC = () => {
-  const { isKYCModalOpen, setIsKYCModalOpen, completeKYC, user } = useApp();
-  const [step, setStep] = useState<number>(1);
-  const [isProcessing, setIsProcessing] = useState<boolean>(false);
-  const [selectedDocType, setSelectedDocType] = useState<string>('drivers_license');
-  const [fileName, setFileName] = useState<string>('drivers_license_front.jpg');
-  const [accreditationType, setAccreditationType] = useState<string>('income');
+  const { t, language } = useI18n();
+  const { activeModal, closeModal, completeKYC, user } = useApp();
 
-  // Form states
-  const [formData, setFormData] = useState({
-    legalName: user.name || 'Johnathan Doe',
-    dob: '1988-06-14',
-    ssnLast4: '4921',
-    address: '742 Evergreen Terrace',
-    city: 'Austin',
-    state: 'TX',
-    zip: '78701',
-    netWorth: '$500k - $1M',
-    annualIncome: '$150k - $250k',
-    riskTolerance: 'Moderate Growth',
-    experience: '5-10 years investing',
+  const isOpen = activeModal === 'kyc';
+
+  const [step, setStep] = useState(1);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [documentType, setDocumentType] = useState('nationalId');
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    legalName: '',
+    dob: '',
+    taxId: '',
+    address: '',
+    city: '',
+    country: COUNTRIES[0],
+    annualIncome: INCOME_BANDS[1],
+    netWorth: NET_WORTH_BANDS[1],
+    riskTolerance: 'moderate',
   });
 
-  if (!isKYCModalOpen) return null;
+  // Start from a clean first step each time, seeded with the profile name.
+  useEffect(() => {
+    if (!isOpen) return;
+    setStep(1);
+    setIsProcessing(false);
+    setFileName(null);
+    setForm((prev) => ({ ...prev, legalName: user.name }));
+  }, [isOpen, user.name]);
 
-  const handleNext = () => {
+  const documentOptions = [
+    { id: 'nationalId', label: t('kyc.doc.nationalId') },
+    { id: 'passport', label: t('kyc.doc.passport') },
+    { id: 'residence', label: t('kyc.doc.residence') },
+  ];
+
+  const riskOptions = [
+    { id: 'conservative', label: t('kyc.risk.conservative') },
+    { id: 'moderate', label: t('kyc.risk.moderate') },
+    { id: 'aggressive', label: t('kyc.risk.aggressive') },
+  ];
+
+  const handleNext = async () => {
     if (step < 3) {
       setStep(step + 1);
-    } else {
-      setIsProcessing(true);
-      setTimeout(() => {
-        setIsProcessing(false);
-        setStep(4);
-        completeKYC('Tier 1 Verified');
-      }, 1200);
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      await completeKYC('Tier 1 Verified');
+      setStep(4);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  const handleClose = () => {
-    setIsKYCModalOpen(false);
-    setStep(1);
-    setIsProcessing(false);
-  };
+  const stepLabels = [t('kyc.step1'), t('kyc.step2'), t('kyc.step3'), t('kyc.step4')];
+  const fieldClass =
+    'w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500';
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-4">
-      <div 
-        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-xl w-full shadow-2xl overflow-hidden transition-all animate-in fade-in zoom-in-95 duration-200"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="kyc-modal-title"
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-850">
-          <div className="flex items-center gap-2">
-            <div className="p-1.5 bg-emerald-100 dark:bg-emerald-950 rounded-lg text-emerald-600 dark:text-emerald-400">
-              <ShieldCheck className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 id="kyc-modal-title" className="text-base font-bold text-slate-900 dark:text-white">
-                Identity & Investor Verification
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                Mandatory SEC / FinCEN Anti-Money Laundering (AML) Compliance
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={handleClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
+    <Modal
+      isOpen={isOpen}
+      onClose={closeModal}
+      size="lg"
+      icon={
+        <span
+          aria-hidden="true"
+          className="p-2 bg-emerald-100 dark:bg-emerald-950 rounded-xl text-emerald-700 dark:text-emerald-400 shrink-0"
+        >
+          <ShieldCheck className="w-5 h-5" />
+        </span>
+      }
+      title={t('kyc.title')}
+      subtitle={t('kyc.subtitle')}
+    >
+      <div className="px-5 sm:px-6 pt-4 pb-2 border-b border-slate-100 dark:border-slate-800">
+        <ol className="flex items-center justify-between text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-2 gap-2">
+          {stepLabels.map((label, index) => (
+            <li
+              key={label}
+              aria-current={step === index + 1 ? 'step' : undefined}
+              className={`truncate ${
+                step >= index + 1 ? 'text-slate-900 dark:text-white font-bold' : ''
+              }`}
+            >
+              <span className="hidden sm:inline">{index + 1}. </span>
+              {label}
+            </li>
+          ))}
+        </ol>
+        <div
+          role="progressbar"
+          aria-valuenow={step}
+          aria-valuemin={1}
+          aria-valuemax={TOTAL_STEPS}
+          aria-label={t('kyc.stepOf', { current: step, total: TOTAL_STEPS })}
+          className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden"
+        >
+          <div
+            className="bg-slate-900 dark:bg-emerald-500 h-full transition-all duration-300 rounded-full"
+            style={{ width: `${(step / TOTAL_STEPS) * 100}%` }}
+          />
         </div>
+      </div>
 
-        {/* Stepper indicator */}
-        <div className="px-6 pt-4 pb-2 border-b border-slate-100 dark:border-slate-800">
-          <div className="flex items-center justify-between text-xs font-medium text-slate-500 dark:text-slate-400 mb-2">
-            <span className={step >= 1 ? 'text-slate-900 dark:text-white font-bold' : ''}>1. Personal Info</span>
-            <span className={step >= 2 ? 'text-slate-900 dark:text-white font-bold' : ''}>2. ID Upload</span>
-            <span className={step >= 3 ? 'text-slate-900 dark:text-white font-bold' : ''}>3. Suitability</span>
-            <span className={step >= 4 ? 'text-emerald-600 font-bold' : ''}>4. Status</span>
-          </div>
-          <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
-            <div 
-              className="bg-slate-900 dark:bg-emerald-500 h-full transition-all duration-300 rounded-full"
-              style={{ width: `${(step / 4) * 100}%` }}
-            />
-          </div>
-        </div>
+      <div className="p-5 sm:p-6 max-h-[60vh] overflow-y-auto">
+        {step === 1 && (
+          <div className="space-y-4">
+            <p className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700 flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300">
+              <Lock className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" aria-hidden="true" />
+              {t('kyc.privacy')}
+            </p>
 
-        {/* Body content based on step */}
-        <div className="p-6">
-          {step === 1 && (
-            <div className="space-y-4">
-              <div className="bg-slate-50 dark:bg-slate-800/60 p-3 rounded-lg border border-slate-200 dark:border-slate-700 flex items-start gap-2 text-xs text-slate-600 dark:text-slate-300">
-                <Lock className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                <span>Your information is encrypted with bank-level 256-bit AES protocol and never shared with unaccredited third parties.</span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div className="sm:col-span-2">
+                <label htmlFor="kyc-name" className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  {t('kyc.legalName')}
+                </label>
+                <input
+                  id="kyc-name"
+                  type="text"
+                  autoComplete="name"
+                  value={form.legalName}
+                  onChange={(event) => setForm({ ...form, legalName: event.target.value })}
+                  className={fieldClass}
+                />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div className="sm:col-span-2">
-                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Full Legal Name</label>
-                  <input
-                    type="text"
-                    value={formData.legalName}
-                    onChange={(e) => setFormData({ ...formData, legalName: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Date of Birth</label>
-                  <input
-                    type="date"
-                    value={formData.dob}
-                    onChange={(e) => setFormData({ ...formData, dob: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Last 4 digits of SSN / Tax ID</label>
-                  <input
-                    type="text"
-                    maxLength={4}
-                    value={formData.ssnLast4}
-                    onChange={(e) => setFormData({ ...formData, ssnLast4: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white font-mono"
-                  />
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Residential Street Address</label>
-                  <input
-                    type="text"
-                    value={formData.address}
-                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">City</label>
-                  <input
-                    type="text"
-                    value={formData.city}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">State</label>
-                    <input
-                      type="text"
-                      value={formData.state}
-                      onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Zip</label>
-                    <input
-                      type="text"
-                      value={formData.zip}
-                      onChange={(e) => setFormData({ ...formData, zip: e.target.value })}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
-                    />
-                  </div>
-                </div>
+              <div>
+                <label htmlFor="kyc-dob" className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  {t('kyc.dob')}
+                </label>
+                <input
+                  id="kyc-dob"
+                  type="date"
+                  autoComplete="bday"
+                  value={form.dob}
+                  onChange={(event) => setForm({ ...form, dob: event.target.value })}
+                  className={fieldClass}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="kyc-tax" className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  {t('kyc.taxId')}
+                </label>
+                <input
+                  id="kyc-tax"
+                  type="text"
+                  value={form.taxId}
+                  onChange={(event) => setForm({ ...form, taxId: event.target.value })}
+                  className={`${fieldClass} font-mono`}
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label htmlFor="kyc-address" className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  {t('kyc.address')}
+                </label>
+                <input
+                  id="kyc-address"
+                  type="text"
+                  autoComplete="street-address"
+                  value={form.address}
+                  onChange={(event) => setForm({ ...form, address: event.target.value })}
+                  className={fieldClass}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="kyc-city" className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  {t('kyc.city')}
+                </label>
+                <input
+                  id="kyc-city"
+                  type="text"
+                  autoComplete="address-level2"
+                  value={form.city}
+                  onChange={(event) => setForm({ ...form, city: event.target.value })}
+                  className={fieldClass}
+                />
+              </div>
+
+              <div>
+                <label htmlFor="kyc-country" className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  {t('kyc.country')}
+                </label>
+                <select
+                  id="kyc-country"
+                  value={form.country}
+                  onChange={(event) => setForm({ ...form, country: event.target.value })}
+                  className={fieldClass}
+                >
+                  {COUNTRIES.map((country) => (
+                    <option key={country}>{country}</option>
+                  ))}
+                </select>
               </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {step === 2 && (
-            <div className="space-y-4 text-xs">
-              <label className="block font-semibold text-slate-900 dark:text-white text-sm">
-                Select Identity Document
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { id: 'drivers_license', label: "Driver's License" },
-                  { id: 'passport', label: 'US Passport' },
-                  { id: 'state_id', label: 'State ID Card' },
-                ].map((doc) => (
+        {step === 2 && (
+          <div className="space-y-4 text-xs">
+            <fieldset>
+              <legend className="font-bold text-slate-900 dark:text-white text-sm mb-2">
+                {t('kyc.docType')}
+              </legend>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {documentOptions.map((option) => (
                   <button
-                    key={doc.id}
+                    key={option.id}
                     type="button"
-                    onClick={() => setSelectedDocType(doc.id)}
-                    className={`py-2.5 px-3 rounded-lg border text-center font-medium transition-colors ${
-                      selectedDocType === doc.id
-                        ? 'border-slate-900 dark:border-emerald-500 bg-slate-900 dark:bg-emerald-600 text-white'
+                    onClick={() => setDocumentType(option.id)}
+                    aria-pressed={documentType === option.id}
+                    className={`py-2.5 px-3 rounded-xl border text-center font-bold transition-colors ${
+                      documentType === option.id
+                        ? 'border-slate-900 dark:border-emerald-500 bg-slate-900 dark:bg-emerald-700 text-white'
                         : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
                     }`}
                   >
-                    {doc.label}
+                    {option.label}
                   </button>
                 ))}
               </div>
+            </fieldset>
 
-              {/* Upload Dropzone */}
-              <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-6 text-center hover:border-slate-400 transition-colors bg-slate-50/50 dark:bg-slate-850">
-                <Upload className="w-8 h-8 mx-auto text-slate-400 dark:text-slate-500 mb-2" />
-                <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">
-                  Drag and drop photo of your ID front or{' '}
-                  <span className="text-emerald-600 dark:text-emerald-400 underline cursor-pointer">browse files</span>
-                </p>
-                <p className="text-[11px] text-slate-400 mt-1">Supports JPG, PNG, or PDF up to 10MB</p>
-
-                {fileName && (
-                  <div className="inline-flex items-center gap-2 mt-3 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-medium">
-                    <FileText className="w-3.5 h-3.5" />
-                    <span>{fileName}</span>
-                    <span className="text-slate-400">(2.4 MB ready)</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-4 text-xs">
-              <p className="text-slate-600 dark:text-slate-300 text-xs">
-                To comply with SEC investor protection rules, please specify your investment background and risk profile.
+            <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-6 text-center bg-slate-50/50 dark:bg-slate-850">
+              <Upload className="w-8 h-8 mx-auto text-slate-400 mb-2" aria-hidden="true" />
+              <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                {t('kyc.upload')}
               </p>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">{t('kyc.uploadHint')}</p>
 
-              <div className="space-y-3">
-                <div>
-                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Annual Household Income</label>
-                  <select
-                    value={formData.annualIncome}
-                    onChange={(e) => setFormData({ ...formData, annualIncome: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
-                  >
-                    <option>&lt; $100,000</option>
-                    <option>$100,000 - $200,000</option>
-                    <option>$200,000 - $300,000 (SEC Accredited Threshold)</option>
-                    <option>&gt; $300,000</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Liquid Net Worth (Excluding Primary Residence)</label>
-                  <select
-                    value={formData.netWorth}
-                    onChange={(e) => setFormData({ ...formData, netWorth: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
-                  >
-                    <option>&lt; $250,000</option>
-                    <option>$250,000 - $1,000,000</option>
-                    <option>&gt; $1,000,000 (SEC Accredited Net Worth)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block font-medium text-slate-700 dark:text-slate-300 mb-1">Primary Investment Horizon & Risk Tolerance</label>
-                  <select
-                    value={formData.riskTolerance}
-                    onChange={(e) => setFormData({ ...formData, riskTolerance: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white"
-                  >
-                    <option>Conservative (Capital Preservation Focus)</option>
-                    <option>Moderate Growth (Balanced Yield & Horizon)</option>
-                    <option>Aggressive / Frontier (High Return Target)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {step === 4 && (
-            <div className="text-center py-4 space-y-4">
-              <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-950/80 rounded-full flex items-center justify-center mx-auto text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 className="w-10 h-10" />
-              </div>
-
-              <div className="space-y-1">
-                <h4 className="text-xl font-bold text-slate-900 dark:text-white">
-                  Verification Approved!
-                </h4>
-                <p className="text-xs text-slate-600 dark:text-slate-300">
-                  Your identity has been verified under SEC Regulation D & CF requirements.
-                </p>
-              </div>
-
-              <div className="bg-slate-50 dark:bg-slate-800/80 p-4 rounded-xl border border-slate-200 dark:border-slate-700 text-left space-y-2 text-xs">
-                <div className="flex justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">Assigned Investor Tier:</span>
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400">Tier 1 Verified Investor</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">Annual Investment Limit:</span>
-                  <span className="font-semibold text-slate-900 dark:text-white">$100,000 / Year</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500 dark:text-slate-400">KYC Clearance ID:</span>
-                  <span className="font-mono text-slate-900 dark:text-white">KYC-US-991823</span>
-                </div>
-              </div>
-
-              <button
-                onClick={handleClose}
-                className="w-full py-3 bg-slate-900 dark:bg-emerald-600 hover:bg-slate-800 dark:hover:bg-emerald-500 text-white font-semibold rounded-xl text-sm transition-colors"
+              {/*
+                A real file input rather than decorative "browse files" text,
+                so the control is reachable by keyboard and screen reader.
+              */}
+              <label
+                htmlFor="kyc-file"
+                className="inline-block mt-3 px-4 py-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors"
               >
-                Return to Dashboard
-              </button>
-            </div>
-          )}
+                {t('kyc.chooseFile')}
+              </label>
+              <input
+                id="kyc-file"
+                type="file"
+                accept="image/jpeg,image/png,application/pdf"
+                className="sr-only"
+                onChange={(event) => setFileName(event.target.files?.[0]?.name ?? null)}
+              />
 
-          {/* Navigation Buttons for steps 1-3 */}
-          {step < 4 && (
-            <div className="flex items-center justify-between pt-6 border-t border-slate-100 dark:border-slate-800 mt-4">
-              {step > 1 ? (
-                <button
-                  type="button"
-                  onClick={() => setStep(step - 1)}
-                  className="px-4 py-2 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-700 dark:text-slate-300 text-xs font-medium flex items-center gap-1 hover:bg-slate-50 dark:hover:bg-slate-800"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" />
-                  Back
-                </button>
-              ) : (
-                <div />
+              {fileName && (
+                <p className="inline-flex items-center gap-2 mt-3 px-3 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-medium max-w-full">
+                  <FileText className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  <span className="truncate">{fileName}</span>
+                </p>
               )}
+            </div>
+          </div>
+        )}
 
+        {step === 3 && (
+          <div className="space-y-4 text-xs">
+            <p className="text-slate-600 dark:text-slate-300">{t('kyc.suitabilityBody')}</p>
+
+            <div>
+              <label htmlFor="kyc-income" className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                {t('kyc.annualIncome')}
+              </label>
+              <select
+                id="kyc-income"
+                value={form.annualIncome}
+                onChange={(event) => setForm({ ...form, annualIncome: event.target.value })}
+                className={fieldClass}
+              >
+                {INCOME_BANDS.map((band) => (
+                  <option key={band}>{band}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="kyc-worth" className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                {t('kyc.netWorth')}
+              </label>
+              <select
+                id="kyc-worth"
+                value={form.netWorth}
+                onChange={(event) => setForm({ ...form, netWorth: event.target.value })}
+                className={fieldClass}
+              >
+                {NET_WORTH_BANDS.map((band) => (
+                  <option key={band}>{band}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="kyc-risk" className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
+                {t('kyc.riskTolerance')}
+              </label>
+              <select
+                id="kyc-risk"
+                value={form.riskTolerance}
+                onChange={(event) => setForm({ ...form, riskTolerance: event.target.value })}
+                className={fieldClass}
+              >
+                {riskOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
+        {step === 4 && (
+          <div className="text-center py-4 space-y-4">
+            <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-950/80 rounded-full flex items-center justify-center mx-auto text-emerald-700 dark:text-emerald-400">
+              <CheckCircle2 className="w-9 h-9" aria-hidden="true" />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">{t('kyc.approved')}</h3>
+              <p className="text-xs text-slate-600 dark:text-slate-300">{t('kyc.approvedBody')}</p>
+            </div>
+
+            <dl className="bg-slate-50 dark:bg-slate-800/80 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 text-left space-y-2 text-xs">
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-500 dark:text-slate-400">{t('kyc.assignedTier')}</dt>
+                <dd className="font-bold text-emerald-700 dark:text-emerald-400">
+                  {t("kyc.tier.Tier 1 Verified")}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-500 dark:text-slate-400">{t('kyc.annualLimit')}</dt>
+                <dd className="font-bold text-slate-900 dark:text-white">
+                  {formatFCFA(50_000_000, language)}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-slate-500 dark:text-slate-400">{t('kyc.clearanceId')}</dt>
+                <dd className="font-mono text-slate-900 dark:text-white">
+                  KYC-{Math.floor(100_000 + Math.random() * 900_000)}
+                </dd>
+              </div>
+            </dl>
+
+            <button
+              type="button"
+              onClick={closeModal}
+              className="w-full py-3 bg-slate-900 dark:bg-emerald-700 hover:bg-slate-800 dark:hover:bg-emerald-600 text-white font-bold rounded-xl text-sm transition-colors"
+            >
+              {t('kyc.returnToDashboard')}
+            </button>
+          </div>
+        )}
+
+        {step < 4 && (
+          <div className="flex items-center justify-between gap-3 pt-5 mt-4 border-t border-slate-100 dark:border-slate-800">
+            {step > 1 ? (
               <button
                 type="button"
-                onClick={handleNext}
-                disabled={isProcessing}
-                className="px-5 py-2.5 bg-slate-900 dark:bg-emerald-600 hover:bg-slate-800 dark:hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg flex items-center gap-1.5 shadow-sm transition-all"
+                onClick={() => setStep(step - 1)}
+                className="px-4 py-2.5 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 text-xs font-bold flex items-center gap-1.5 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
               >
-                {isProcessing ? (
-                  <span className="inline-flex items-center gap-2">
-                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                    Verifying Identity...
-                  </span>
-                ) : (
-                  <>
-                    {step === 3 ? 'Submit Verification' : 'Continue'}
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </>
-                )}
+                <ArrowLeft className="w-3.5 h-3.5" aria-hidden="true" />
+                {t('kyc.back')}
               </button>
-            </div>
-          )}
-        </div>
+            ) : (
+              <span />
+            )}
+
+            <button
+              type="button"
+              onClick={handleNext}
+              disabled={isProcessing}
+              className="px-5 py-2.5 bg-slate-900 dark:bg-emerald-700 hover:bg-slate-800 dark:hover:bg-emerald-600 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors disabled:opacity-60"
+            >
+              {isProcessing ? (
+                <>
+                  <span
+                    aria-hidden="true"
+                    className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"
+                  />
+                  {t('kyc.verifying')}
+                </>
+              ) : (
+                <>
+                  {step === 3 ? t('kyc.submit') : t('kyc.continue')}
+                  <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
-    </div>
+    </Modal>
   );
 };

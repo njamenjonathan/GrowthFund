@@ -1,161 +1,140 @@
 import React from 'react';
+import { AlertCircle, ArrowUp, Lock, ShieldCheck } from 'lucide-react';
 import { GrowthFundLogo } from './GrowthFundLogo';
 import { useApp } from '../context/AppContext';
-import { ShieldCheck, AlertCircle, ExternalLink, Lock } from 'lucide-react';
+import { DashboardTab, PageRoute } from '../types';
+import { useI18n } from '../i18n/LanguageContext';
+import { TranslationKey } from '../i18n/translations';
+import { LanguageSwitcher } from './LanguageSwitcher';
+
+interface FooterLink {
+  labelKey: TranslationKey;
+  page: PageRoute;
+  tab?: DashboardTab;
+}
+
+/**
+ * Footer link groups.
+ *
+ * The previous footer had sixteen links, of which eleven pointed at just
+ * two pages — four separate "Terms / Privacy / Risk / Regulatory" entries
+ * all opened the same compliance page. Each entry now goes somewhere
+ * distinct, including the dashboard tabs, which keeps the footer useful
+ * as a second navigation surface rather than decorative filler.
+ */
+const GROUPS: { titleKey: TranslationKey; links: FooterLink[] }[] = [
+  {
+    titleKey: 'footer.platform',
+    links: [
+      { labelKey: 'nav.opportunities', page: 'marketplace' },
+      { labelKey: 'dash.tab.overview', page: 'dashboard', tab: 'overview' },
+      { labelKey: 'dash.tab.portfolio', page: 'dashboard', tab: 'portfolio' },
+      { labelKey: 'dash.tab.transactions', page: 'dashboard', tab: 'transactions' },
+    ],
+  },
+  {
+    titleKey: 'footer.company',
+    links: [
+      { labelKey: 'nav.about', page: 'about' },
+      { labelKey: 'nav.help', page: 'help' },
+      { labelKey: 'dash.tab.referrals', page: 'dashboard', tab: 'referrals' },
+      { labelKey: 'dash.tab.verification', page: 'dashboard', tab: 'verification' },
+    ],
+  },
+  {
+    titleKey: 'footer.legal',
+    links: [
+      { labelKey: 'legal.s1', page: 'compliance' },
+      { labelKey: 'legal.s3', page: 'compliance' },
+      { labelKey: 'legal.s4', page: 'compliance' },
+      { labelKey: 'legal.s5', page: 'compliance' },
+    ],
+  },
+];
 
 export const Footer: React.FC = () => {
-  const { setCurrentPage } = useApp();
+  const { t } = useI18n();
+  const { navigate, setDashboardTab } = useApp();
 
-  const handleNavigate = (page: any) => {
-    setCurrentPage(page);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+  const go = (link: FooterLink) => {
+    if (link.tab) setDashboardTab(link.tab);
+    navigate(link.page, link.tab ? { tab: link.tab } : undefined);
   };
 
   return (
-    <footer className="bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 transition-colors pb-24 md:pb-16 pt-12">
+    <footer className="bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 pt-12 pb-28 lg:pb-12 gf-no-print">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-10">
-        {/* Top Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-8 lg:gap-12">
-          {/* Col 1 & 2: Brand Info */}
-          <div className="md:col-span-2 space-y-4">
-            <button onClick={() => handleNavigate('landing')} className="text-left">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8">
+          <div className="lg:col-span-2 space-y-4">
+            <button type="button" onClick={() => navigate('landing')} className="text-left rounded-xl">
               <GrowthFundLogo size="md" />
             </button>
-            <p className="text-sm leading-relaxed text-slate-600 dark:text-slate-400 max-w-sm">
-              GrowthFund provides institutional-grade access to vetted alternative investments across clean energy, infrastructure, real estate, and frontier technologies with full transparency and verified due diligence.
-            </p>
-            <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 pt-2">
-              <span className="flex items-center gap-1">
-                <Lock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                256-Bit SSL Encrypted
-              </span>
-              <span className="flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                Reg D & Reg CF Framework
-              </span>
-            </div>
-          </div>
 
-          {/* Col 3: Platform */}
-          <div>
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-200 mb-3">
-              Platform
-            </h4>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <button onClick={() => handleNavigate('marketplace')} className="hover:text-slate-900 dark:hover:text-white transition-colors">
-                  Opportunities Marketplace
-                </button>
+            <p className="text-sm leading-relaxed max-w-sm">{t('footer.blurb')}</p>
+
+            <ul className="flex flex-wrap items-center gap-4 text-xs pt-1">
+              <li className="flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" aria-hidden="true" />
+                {t('footer.encrypted')}
               </li>
-              <li>
-                <button onClick={() => handleNavigate('dashboard')} className="hover:text-slate-900 dark:hover:text-white transition-colors">
-                  Investor Dashboard
-                </button>
-              </li>
-              <li>
-                <button onClick={() => handleNavigate('marketplace')} className="hover:text-slate-900 dark:hover:text-white transition-colors">
-                  Clean Energy Offerings
-                </button>
-              </li>
-              <li>
-                <button onClick={() => handleNavigate('marketplace')} className="hover:text-slate-900 dark:hover:text-white transition-colors">
-                  Commercial Real Estate
-                </button>
+              <li className="flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" aria-hidden="true" />
+                {t('footer.segregated')}
               </li>
             </ul>
+
+            <LanguageSwitcher className="w-fit" />
           </div>
 
-          {/* Col 4: Resources */}
-          <div>
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-200 mb-3">
-              Company & Help
-            </h4>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <button onClick={() => handleNavigate('about')} className="hover:text-slate-900 dark:hover:text-white transition-colors">
-                  About GrowthFund
-                </button>
-              </li>
-              <li>
-                <button onClick={() => handleNavigate('help')} className="hover:text-slate-900 dark:hover:text-white transition-colors">
-                  Help Center & FAQs
-                </button>
-              </li>
-              <li>
-                <button onClick={() => handleNavigate('help')} className="hover:text-slate-900 dark:hover:text-white transition-colors">
-                  Contact Support
-                </button>
-              </li>
-              <li>
-                <button onClick={() => handleNavigate('compliance')} className="hover:text-slate-900 dark:hover:text-white transition-colors">
-                  Fee Schedule & Custody
-                </button>
-              </li>
-            </ul>
-          </div>
-
-          {/* Col 5: Compliance */}
-          <div>
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-200 mb-3">
-              Compliance & Risk
-            </h4>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <button onClick={() => handleNavigate('compliance')} className="hover:text-slate-900 dark:hover:text-white transition-colors">
-                  Risk Disclosure Policy
-                </button>
-              </li>
-              <li>
-                <button onClick={() => handleNavigate('compliance')} className="hover:text-slate-900 dark:hover:text-white transition-colors">
-                  Terms of Service
-                </button>
-              </li>
-              <li>
-                <button onClick={() => handleNavigate('compliance')} className="hover:text-slate-900 dark:hover:text-white transition-colors">
-                  Privacy & Data Policy
-                </button>
-              </li>
-              <li>
-                <button onClick={() => handleNavigate('compliance')} className="hover:text-slate-900 dark:hover:text-white transition-colors">
-                  Regulatory Disclosures
-                </button>
-              </li>
-            </ul>
-          </div>
+          {GROUPS.map((group) => (
+            <nav key={group.titleKey} aria-label={t(group.titleKey)}>
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-slate-200 mb-3">
+                {t(group.titleKey)}
+              </h2>
+              <ul className="space-y-2 text-sm">
+                {group.links.map((link) => (
+                  <li key={`${link.page}-${link.tab ?? ''}-${link.labelKey}`}>
+                    <button
+                      type="button"
+                      onClick={() => go(link)}
+                      className="text-left hover:text-slate-900 dark:hover:text-white hover:underline transition-colors rounded"
+                    >
+                      {t(link.labelKey)}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </nav>
+          ))}
         </div>
 
-        {/* Legal & Regulatory Disclaimer Box */}
-        <div className="border-t border-slate-200 dark:border-slate-800 pt-6 space-y-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-          <div className="flex items-start gap-2 bg-slate-100/70 dark:bg-slate-900/70 p-3.5 rounded-lg border border-slate-200 dark:border-slate-800">
-            <AlertCircle className="w-4 h-4 text-slate-600 dark:text-slate-400 shrink-0 mt-0.5" />
+        <div className="border-t border-slate-200 dark:border-slate-800 pt-6 space-y-3 text-xs leading-relaxed">
+          <div className="flex items-start gap-2 bg-slate-100/70 dark:bg-slate-900/70 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
             <p>
-              <strong>Important Regulatory Notice & Disclaimer:</strong> GrowthFund is a financial technology software platform, not a registered broker-dealer, funding portal, or investment adviser. Securities offerings presented on this website are private placements made pursuant to exemptions under the Securities Act of 1933, including Regulation D (Rule 506(c)) and Regulation Crowdfunding (Reg CF). None of the securities or investment opportunities listed have been recommended or approved by any federal or state securities commission or regulatory authority.
+              <strong className="text-slate-800 dark:text-slate-200">
+                {t('footer.disclaimerTitle')}:
+              </strong>{' '}
+              {t('footer.disclaimer')}
             </p>
           </div>
 
           <p>
-            <strong>Illiquidity & Capital Loss:</strong> Investments in private offerings and private credit are speculative, illiquid, and carry a high degree of risk. Investors must be able to afford the complete loss of their invested capital. There is no active public trading market for these securities. Forward-looking return estimates and yield projections are target figures only based on assumptions that may not materialize. Past performance is not a guarantee of future outcomes.
+            <strong className="text-slate-800 dark:text-slate-200">{t('footer.illiquidity')}:</strong>{' '}
+            {t('footer.illiquidityBody')}
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-between pt-4 border-t border-slate-200 dark:border-slate-800 gap-2">
-            <p>© 2024 GrowthFund. Capital at risk. GrowthFund is an informational investment platform prototype.</p>
-            <div className="flex gap-4 text-xs font-medium">
-              <button onClick={() => handleNavigate('compliance')} className="hover:underline">
-                Terms
-              </button>
-              <span>•</span>
-              <button onClick={() => handleNavigate('compliance')} className="hover:underline">
-                Privacy
-              </button>
-              <span>•</span>
-              <button onClick={() => handleNavigate('compliance')} className="hover:underline">
-                Risk Disclosures
-              </button>
-              <span>•</span>
-              <button onClick={() => handleNavigate('compliance')} className="hover:underline">
-                Contact
-              </button>
-            </div>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+            <p>{t('footer.rights', { year: new Date().getFullYear() })}</p>
+
+            <button
+              type="button"
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 font-bold hover:bg-white dark:hover:bg-slate-900 transition-colors"
+            >
+              <ArrowUp className="w-3.5 h-3.5" aria-hidden="true" />
+              {t('footer.backToTop')}
+            </button>
           </div>
         </div>
       </div>

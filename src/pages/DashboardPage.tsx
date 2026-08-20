@@ -1,974 +1,1120 @@
-import React, { useState } from 'react';
-import { useApp } from '../context/AppContext';
-import { PortfolioHolding } from '../types';
-import { 
-  Coins, 
-  TrendingUp, 
-  Briefcase, 
-  Wallet, 
-  ShieldCheck, 
-  ArrowUpRight, 
-  ArrowDownLeft, 
-  Download, 
-  Calendar, 
-  Clock, 
-  ChevronRight, 
-  AlertTriangle,
-  Building,
-  CheckCircle2,
-  FileSpreadsheet,
-  Settings,
-  Plus,
-  Gift,
-  Copy,
-  Share2,
-  Users,
-  Sparkles,
+import React, { useMemo, useState } from 'react';
+import {
+  ArrowDownLeft,
+  ArrowUpRight,
   Award,
-  FileText,
-  Database,
-  CloudCheck
+  Briefcase,
+  CheckCircle2,
+  ChevronRight,
+  Coins,
+  Copy,
+  FileSpreadsheet,
+  Gift,
+  Plus,
+  Share2,
+  ShieldCheck,
+  Sparkles,
+  TrendingUp,
+  Users,
+  Wallet,
 } from 'lucide-react';
-import { 
-  ResponsiveContainer, 
-  AreaChart, 
-  Area, 
-  XAxis, 
-  YAxis, 
-  Tooltip, 
-  CartesianGrid, 
-  PieChart, 
-  Pie, 
-  Cell 
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  Cell,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from 'recharts';
-import { PORTFOLIO_CHART_DATA } from '../data/mockData';
-import { formatFCFA, formatShortFCFA, formatXAF } from '../utils/currency';
+import { useApp } from '../context/AppContext';
 import { CertificateModal } from '../components/CertificateModal';
+import { DashboardTab, PortfolioHolding, TransactionType } from '../types';
+import { MONTH_LABELS, PORTFOLIO_CHART_DATA } from '../data/mockData';
+import { useI18n } from '../i18n/LanguageContext';
+import { TranslationKey } from '../i18n/translations';
+import {
+  formatAxis,
+  formatDate,
+  formatFCFA,
+  formatPercent,
+  formatShortFCFA,
+  formatXAF,
+} from '../utils/format';
+
+const TABS: { id: DashboardTab; labelKey: TranslationKey }[] = [
+  { id: 'overview', labelKey: 'dash.tab.overview' },
+  { id: 'portfolio', labelKey: 'dash.tab.portfolio' },
+  { id: 'referrals', labelKey: 'dash.tab.referrals' },
+  { id: 'transactions', labelKey: 'dash.tab.transactions' },
+  { id: 'verification', labelKey: 'dash.tab.verification' },
+];
+
+/*
+ * Transaction filters.
+ *
+ * The old chips used the literal string 'Distribution', but the type in
+ * the data is 'Return Distribution' — so selecting that filter always
+ * produced an empty ledger, and the "positive amount" test it shared
+ * never matched either, showing every distribution as a debit.
+ */
+const TX_FILTERS: ('All' | TransactionType)[] = [
+  'All',
+  'Investment',
+  'Return Distribution',
+  'Deposit',
+  'Withdrawal',
+  'Referral Bonus',
+];
+
+const CREDIT_TYPES: TransactionType[] = ['Return Distribution', 'Deposit', 'Referral Bonus'];
+
+const CATEGORY_COLOURS: Record<string, string> = {
+  Energy: '#10B981',
+  'Real Estate': '#3B82F6',
+  Technology: '#8B5CF6',
+  Healthcare: '#EC4899',
+  Infrastructure: '#F59E0B',
+  Agriculture: '#84CC16',
+};
 
 export const DashboardPage: React.FC = () => {
-  const { 
-    user, 
-    holdings, 
-    transactions, 
-    dashboardTab, 
-    setDashboardTab, 
-    setIsKYCModalOpen,
-    setIsDepositModalOpen,
-    setIsWithdrawModalOpen,
+  const { t, tr, language } = useI18n();
+  const {
+    user,
+    holdings,
+    transactions,
+    dashboardTab,
+    setDashboardTab,
+    openModal,
+    navigate,
     navigateToOpportunity,
     applyReferralCode,
     simulateFriendReferral,
-    setCurrentPage,
-    addToast
+    addToast,
   } = useApp();
 
-  const [txFilter, setTxFilter] = useState<'All' | 'Investment' | 'Distribution' | 'Deposit' | 'Withdrawal' | 'Referral Bonus'>('All');
-  const [inputReferralCode, setInputReferralCode] = useState<string>('');
-  const [copiedCode, setCopiedCode] = useState<boolean>(false);
-  
-  // Official Certificate Modal state
-  const [selectedHoldingForCert, setSelectedHoldingForCert] = useState<PortfolioHolding | null>(null);
-  const [isCertModalOpen, setIsCertModalOpen] = useState<boolean>(false);
+  const [txFilter, setTxFilter] = useState<'All' | TransactionType>('All');
+  const [referralInput, setReferralInput] = useState('');
+  const [hasCopied, setHasCopied] = useState(false);
+  const [certificateHolding, setCertificateHolding] = useState<PortfolioHolding | null>(null);
 
-  const openCertificate = (h: PortfolioHolding, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    setSelectedHoldingForCert(h);
-    setIsCertModalOpen(true);
-  };
+  const allocation = useMemo(() => {
+    const totals: Record<string, number> = {};
+    holdings.forEach((holding) => {
+      totals[holding.category] = (totals[holding.category] ?? 0) + holding.investedAmount;
+    });
+    return Object.entries(totals).map(([name, value]) => ({
+      name,
+      value,
+      colour: CATEGORY_COLOURS[name] ?? '#64748B',
+    }));
+  }, [holdings]);
 
-  // Calculate allocation breakdown
-  const categoryTotals: Record<string, number> = {};
-  holdings.forEach((h) => {
-    categoryTotals[h.category] = (categoryTotals[h.category] || 0) + h.investedAmount;
-  });
+  const chartData = useMemo(
+    () =>
+      PORTFOLIO_CHART_DATA.map((point) => ({
+        ...point,
+        month: MONTH_LABELS[point.monthKey][language],
+      })),
+    [language],
+  );
 
-  const pieColors: Record<string, string> = {
-    'Clean Energy': '#10B981',
-    'Real Estate': '#3B82F6',
-    Technology: '#8B5CF6',
-    Healthcare: '#EC4899',
-    Infrastructure: '#F59E0B',
-    Agriculture: '#84CC16',
-  };
+  const investedCapital = holdings.reduce((sum, h) => sum + h.investedAmount, 0);
+  const earnedDistributions = holdings.reduce((sum, h) => sum + h.totalReturnsEarned, 0);
+  const totalValue = holdings.reduce((sum, h) => sum + h.currentValue, 0) + user.walletBalance;
 
-  const allocationData = Object.keys(categoryTotals).map((cat) => ({
-    name: cat,
-    value: categoryTotals[cat],
-    color: pieColors[cat] || '#64748B',
-  }));
+  const filteredTransactions = useMemo(
+    () => (txFilter === 'All' ? transactions : transactions.filter((tx) => tx.type === txFilter)),
+    [transactions, txFilter],
+  );
 
-  const totalPortfolioValue = holdings.reduce((sum, h) => sum + h.currentValue, 0) + user.walletBalance;
-  const totalInvestedCapital = holdings.reduce((sum, h) => sum + h.investedAmount, 0);
-  const totalEarnedDistributions = holdings.reduce((sum, h) => sum + h.totalReturnsEarned, 0);
-
-  const filteredTransactions = transactions.filter((t) => {
-    if (txFilter === 'All') return true;
-    return t.type === txFilter;
-  });
-
-  const handleExportCSV = () => {
-    addToast('Transaction ledger exported to CSV.', 'info');
-  };
-
-  const handleCopyReferral = () => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(user.referralCode);
-      setCopiedCode(true);
-      addToast(`Referral code ${user.referralCode} copied to clipboard!`, 'success');
-      setTimeout(() => setCopiedCode(false), 3000);
+  const copyToClipboard = async (value: string, successKey: TranslationKey) => {
+    try {
+      await navigator.clipboard.writeText(value);
+      addToast(t(successKey), 'success');
+      return true;
+    } catch {
+      // Clipboard access is denied in some embedded contexts; say so
+      // rather than showing a success message for something that failed.
+      addToast(t('toast.copyFailed'), 'error');
+      return false;
     }
   };
 
-  const handleShareReferral = () => {
-    const shareUrl = `${window.location.origin}/#ref=${user.referralCode}`;
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(shareUrl);
-      addToast('Referral invitation link copied to clipboard!', 'info');
+  const handleCopyCode = async () => {
+    if (await copyToClipboard(user.referralCode, 'toast.codeCopied')) {
+      setHasCopied(true);
+      window.setTimeout(() => setHasCopied(false), 2500);
     }
   };
 
-  const handleApplyCodeSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputReferralCode.trim()) return;
-    const success = applyReferralCode(inputReferralCode);
-    if (success) {
-      setInputReferralCode('');
-    }
+  const handleApplyReferral = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!referralInput.trim()) return;
+    // Awaited — previously `if (success)` tested a Promise object, which
+    // is always truthy, so the field cleared even when the code was rejected.
+    const succeeded = await applyReferralCode(referralInput);
+    if (succeeded) setReferralInput('');
+  };
+
+  const exportCsv = () => {
+    const header = ['date', 'type', 'description', 'amount_xaf', 'status', 'reference'];
+    const rows = filteredTransactions.map((tx) => [
+      tx.date,
+      tx.type,
+      // Quotes are doubled so a comma in a description cannot break the row.
+      `"${(typeof tx.projectName === 'string' ? tx.projectName : tr(tx.projectName)).replace(/"/g, '""')}"`,
+      String(tx.amount),
+      tx.status,
+      tx.referenceId,
+    ]);
+
+    const csv = [header, ...rows].map((row) => row.join(',')).join('\n');
+    const blob = new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+
+    // The old handler only showed a toast claiming the ledger was
+    // exported; nothing was ever produced. This writes a real file.
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `growthfund-transactions-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    addToast(t('toast.exported'), 'success');
+  };
+
+  const card = 'bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800';
+  const chartTooltipStyle = {
+    backgroundColor: '#0F172A',
+    borderRadius: '12px',
+    border: 'none',
+    color: '#fff',
+    fontSize: '12px',
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8 pb-20">
-      {/* Top Welcome Header */}
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-6">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-slate-900 dark:bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <span
+            aria-hidden="true"
+            className="w-12 h-12 rounded-2xl bg-slate-900 dark:bg-emerald-700 text-white flex items-center justify-center font-bold text-lg shrink-0"
+          >
             {user.initials}
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white font-display">
-                Welcome back, {user.name}
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 dark:text-white font-display truncate">
+                {t('dash.welcome', { name: user.name })}
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3" />
-                {user.kycTier}
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 flex items-center gap-1 shrink-0">
+                <ShieldCheck className="w-3 h-3" aria-hidden="true" />
+                {t(`kyc.tier.${user.kycTier}` as TranslationKey)}
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Account: {user.accountNumber} • Referral Code: <strong className="text-slate-900 dark:text-white font-mono">{user.referralCode}</strong>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+              {t('dash.account')}: {user.accountNumber}
             </p>
           </div>
         </div>
 
-        {/* Action buttons: Cash In & Cash Out */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 shrink-0">
           <button
-            onClick={() => setIsDepositModalOpen(true)}
-            className="px-4 py-2.5 bg-slate-900 dark:bg-emerald-600 hover:bg-slate-800 dark:hover:bg-emerald-500 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-sm"
+            type="button"
+            onClick={() => openModal('deposit')}
+            className="px-4 py-2.5 bg-slate-900 dark:bg-emerald-700 hover:bg-slate-800 dark:hover:bg-emerald-600 text-white text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5"
           >
-            <ArrowDownLeft className="w-4 h-4" />
-            Cash In (Deposit FCFA)
+            <ArrowDownLeft className="w-4 h-4" aria-hidden="true" />
+            {t('wallet.cashIn')}
           </button>
           <button
-            onClick={() => setIsWithdrawModalOpen(true)}
-            className="px-4 py-2.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5 shadow-xs"
+            type="button"
+            onClick={() => openModal('withdraw')}
+            className="px-4 py-2.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-colors flex items-center gap-1.5"
           >
-            <ArrowUpRight className="w-4 h-4" />
-            Cash Out (5,000 XAF steps)
+            <ArrowUpRight className="w-4 h-4" aria-hidden="true" />
+            {t('wallet.cashOut')}
           </button>
         </div>
       </div>
 
-      {/* Metric Cards Top Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Portfolio Value */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Total Portfolio Value</span>
-            <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-              <Coins className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold font-mono text-slate-900 dark:text-white truncate">
-            {formatFCFA(totalPortfolioValue)}
-          </p>
-          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
-            <TrendingUp className="w-3 h-3" />
-            +{formatFCFA(totalEarnedDistributions)} yield distributed
-          </span>
-        </div>
-
-        {/* Active Capital */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Active Capital Deployed</span>
-            <div className="p-2 rounded-xl bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400">
-              <Briefcase className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold font-mono text-slate-900 dark:text-white truncate">
-            {formatFCFA(totalInvestedCapital)}
-          </p>
-          <span className="text-[11px] text-slate-500 dark:text-slate-400">
-            Across {holdings.length} active offerings
-          </span>
-        </div>
-
-        {/* Available Cash Balance */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Cash Balance</span>
-            <div className="p-2 rounded-xl bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
-              <Wallet className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold font-mono text-slate-900 dark:text-white truncate">
-            {formatFCFA(user.walletBalance)}
-          </p>
-          <span className="text-[11px] text-slate-500 dark:text-slate-400">
-            Ready for cash out (in 5,000s) or invest
-          </span>
-        </div>
-
-        {/* Referral Earnings */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-2 cursor-pointer hover:border-emerald-500/50 transition-colors" onClick={() => setDashboardTab('referrals')}>
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Referral Bonus Balance</span>
-            <div className="p-2 rounded-xl bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-400">
-              <Gift className="w-4 h-4" />
-            </div>
-          </div>
-          <p className="text-2xl font-extrabold font-mono text-slate-900 dark:text-white truncate">
-            {formatXAF(user.referralEarnings)}
-          </p>
-          <span className="text-[11px] text-purple-600 dark:text-purple-400 font-bold flex items-center gap-1">
-            <Users className="w-3 h-3" />
-            {user.referralCount} referred • +1,000 XAF/ref
-          </span>
-        </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 gf-stagger">
+        <StatCard
+          icon={Coins}
+          tone="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300"
+          label={t('dash.totalValue')}
+          value={formatFCFA(totalValue, language)}
+          footnote={
+            <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1">
+              <TrendingUp className="w-3 h-3" aria-hidden="true" />
+              {t('dash.yieldDistributed', { amount: formatFCFA(earnedDistributions, language) })}
+            </span>
+          }
+        />
+        <StatCard
+          icon={Briefcase}
+          tone="bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400"
+          label={t('dash.activeCapital')}
+          value={formatFCFA(investedCapital, language)}
+          footnote={t('dash.acrossOfferings', { count: holdings.length })}
+        />
+        <StatCard
+          icon={Wallet}
+          tone="bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400"
+          label={t('wallet.balance')}
+          value={formatFCFA(user.walletBalance, language)}
+          footnote={t('dash.readyToUse')}
+        />
+        <StatCard
+          icon={Gift}
+          tone="bg-purple-100 dark:bg-purple-950 text-purple-600 dark:text-purple-400"
+          label={t('dash.referralBalance')}
+          value={formatXAF(user.referralEarnings, language)}
+          footnote={
+            <span className="text-purple-600 dark:text-purple-400 font-bold flex items-center gap-1">
+              <Users className="w-3 h-3" aria-hidden="true" />
+              {t('dash.referredCount', { count: user.referralCount })}
+            </span>
+          }
+          onClick={() => setDashboardTab('referrals')}
+        />
       </div>
 
-      {/* Tabs Row */}
-      <div className="border-b border-slate-200 dark:border-slate-800 flex items-center gap-2 overflow-x-auto scrollbar-none">
-        {[
-          { id: 'overview', label: 'Portfolio Overview' },
-          { id: 'portfolio', label: `My Holdings (${holdings.length})` },
-          { id: 'referrals', label: `Referrals & Bonuses (+1000 XAF)` },
-          { id: 'transactions', label: `Transactions (${transactions.length})` },
-          { id: 'verification', label: 'Identity & Compliance' },
-        ].map((tab) => (
+      <div
+        role="tablist"
+        aria-label={t('dash.tabsLabel')}
+        className="border-b border-slate-200 dark:border-slate-800 flex items-center gap-1 overflow-x-auto scrollbar-none"
+      >
+        {TABS.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setDashboardTab(tab.id as any)}
-            className={`py-3.5 px-4 text-xs font-bold whitespace-nowrap border-b-2 transition-all cursor-pointer ${
+            type="button"
+            role="tab"
+            id={`dash-tab-${tab.id}`}
+            aria-selected={dashboardTab === tab.id}
+            aria-controls={`dash-panel-${tab.id}`}
+            tabIndex={dashboardTab === tab.id ? 0 : -1}
+            onClick={() => setDashboardTab(tab.id)}
+            onKeyDown={(event) => {
+              const index = TABS.findIndex((item) => item.id === dashboardTab);
+              if (event.key === 'ArrowRight') setDashboardTab(TABS[(index + 1) % TABS.length].id);
+              if (event.key === 'ArrowLeft')
+                setDashboardTab(TABS[(index - 1 + TABS.length) % TABS.length].id);
+            }}
+            className={`py-3.5 px-4 text-xs font-bold whitespace-nowrap border-b-2 transition-colors ${
               dashboardTab === tab.id
                 ? 'border-slate-900 dark:border-emerald-500 text-slate-900 dark:text-white'
                 : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
           >
-            {tab.label}
+            {t(tab.labelKey)}
           </button>
         ))}
       </div>
 
-      {/* TAB 1: OVERVIEW */}
-      {dashboardTab === 'overview' && (
-        <div className="space-y-8">
-          {/* Charts Grid: Projected Growth Chart + Sector Allocation Pie */}
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Left 8 cols: Projected Growth Chart */}
-            <div className="lg:col-span-8 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <div
+        role="tabpanel"
+        id={`dash-panel-${dashboardTab}`}
+        aria-labelledby={`dash-tab-${dashboardTab}`}
+        tabIndex={0}
+        key={dashboardTab}
+        className="focus:outline-none gf-animate-fade-in"
+      >
+        {dashboardTab === 'overview' && (
+          <div className="space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <section className={`lg:col-span-8 ${card} p-5 sm:p-6 space-y-4`}>
                 <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white font-display">
-                    Portfolio Value & Compounding Trajectory
-                  </h3>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white font-display">
+                    {t('dash.growthChart')}
+                  </h2>
                   <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Quarterly yield accumulation & reinvestment projection (Franc CFA)
+                    {t('dash.growthChartBody')}
                   </p>
                 </div>
-                <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-1 rounded-lg">
-                  Net IRR Target: 10.2% p.a.*
-                </span>
-              </div>
 
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={PORTFOLIO_CHART_DATA} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorVal" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#10B981" stopOpacity={0.0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#94A3B8" opacity={0.2} />
-                    <XAxis dataKey="month" stroke="#94A3B8" fontSize={11} />
-                    <YAxis stroke="#94A3B8" fontSize={11} tickFormatter={(v) => formatShortFCFA(v)} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#0F172A',
-                        borderRadius: '12px',
-                        border: 'none',
-                        color: '#fff',
-                        fontSize: '12px',
-                      }}
-                      formatter={(v: any) => [formatFCFA(Number(v)), 'Portfolio Total']}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="value"
-                      stroke="#10B981"
-                      strokeWidth={2.5}
-                      fillOpacity={1}
-                      fill="url(#colorVal)"
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Right 4 cols: Allocation Pie */}
-            <div className="lg:col-span-4 bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-4 flex flex-col justify-between">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white font-display">
-                  Sector Allocation (FCFA)
-                </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Diversification by asset class
-                </p>
-              </div>
-
-              <div className="h-44 w-full flex items-center justify-center">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={allocationData}
-                      dataKey="value"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={45}
-                      outerRadius={70}
-                      paddingAngle={3}
-                    >
-                      {allocationData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#0F172A',
-                        borderRadius: '12px',
-                        border: 'none',
-                        color: '#fff',
-                        fontSize: '12px',
-                      }}
-                      formatter={(v: any) => [formatFCFA(Number(v)), 'Invested']}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-
-              <div className="space-y-1.5 text-xs">
-                {allocationData.map((item) => (
-                  <div key={item.name} className="flex items-center justify-between">
-                    <span className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
-                      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
-                      {item.name}
-                    </span>
-                    <span className="font-mono font-bold text-slate-900 dark:text-white">
-                      {formatFCFA(item.value)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Referral Banner in Overview */}
-          <div className="p-6 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 rounded-3xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-md">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <Gift className="w-5 h-5 text-amber-300" />
-                <h4 className="font-extrabold text-lg">Invite Friends & Earn 1,000 XAF Bonus</h4>
-              </div>
-              <p className="text-xs text-emerald-100 max-w-xl leading-relaxed">
-                Give your personal referral code to friends. When they join GrowthFund, you automatically receive a <strong>1,000 XAF</strong> cash bonus directly in your wallet!
-              </p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => setDashboardTab('referrals')}
-                className="px-4 py-2.5 bg-white text-slate-900 hover:bg-slate-100 font-bold rounded-xl text-xs transition-colors shadow-sm"
-              >
-                View Referral Center
-              </button>
-            </div>
-          </div>
-
-          {/* Quick Holdings Preview Table */}
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
-            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Active Asset Holdings
-                </h3>
-                <p className="text-xs text-slate-500">Live positions in verified projects</p>
-              </div>
-              <button
-                onClick={() => setDashboardTab('portfolio')}
-                className="text-xs font-bold text-emerald-600 hover:underline cursor-pointer"
-              >
-                View all details
-              </button>
-            </div>
-
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {holdings.map((h) => (
-                <div
-                  key={h.id}
-                  onClick={() => navigateToOpportunity(h.opportunityId)}
-                  className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-slate-850 transition-colors cursor-pointer"
-                >
-                  <div className="space-y-1">
-                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
-                      {h.category}
-                    </span>
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">
-                      {h.opportunityTitle}
-                    </h4>
-                    <p className="text-xs text-slate-500">
-                      Allocated: {h.investedDate} • Maturity: {h.maturityDate}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-6 self-stretch sm:self-auto justify-between">
-                    <div className="text-left sm:text-right">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Principal</span>
-                      <span className="text-sm font-bold font-mono text-slate-900 dark:text-white">
-                        {formatFCFA(h.investedAmount)}
-                      </span>
-                    </div>
-
-                    <div className="text-left sm:text-right">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Yield Received</span>
-                      <span className="text-sm font-bold font-mono text-emerald-600 dark:text-emerald-400">
-                        +{formatFCFA(h.totalReturnsEarned)}
-                      </span>
-                    </div>
-
-                    <ChevronRight className="w-4 h-4 text-slate-400 hidden sm:block" />
-                  </div>
+                <div className="h-56 sm:h-64 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="portfolioGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10B981" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#94A3B8" opacity={0.2} />
+                      <XAxis dataKey="month" stroke="#94A3B8" fontSize={11} />
+                      <YAxis
+                        stroke="#94A3B8"
+                        fontSize={11}
+                        width={52}
+                        tickFormatter={(value: number) => formatAxis(value, language)}
+                      />
+                      <Tooltip
+                        contentStyle={chartTooltipStyle}
+                        formatter={(value: unknown) => [
+                          formatFCFA(Number(value) || 0, language),
+                          t('dash.totalValue'),
+                        ]}
+                      />
+                      <Area
+                        type="monotone"
+                        dataKey="value"
+                        stroke="#10B981"
+                        strokeWidth={2.5}
+                        fillOpacity={1}
+                        fill="url(#portfolioGradient)"
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+              </section>
 
-      {/* TAB 2: PORTFOLIO HOLDINGS */}
-      {dashboardTab === 'portfolio' && (
-        <div className="space-y-6">
-          <div className="flex justify-between items-center">
+              <section className={`lg:col-span-4 ${card} p-5 sm:p-6 space-y-4 flex flex-col`}>
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white font-display">
+                    {t('dash.allocation')}
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {t('dash.allocationBody')}
+                  </p>
+                </div>
+
+                {allocation.length === 0 ? (
+                  <p className="flex-1 flex items-center justify-center text-xs text-slate-500 dark:text-slate-400">
+                    {t('dash.noHoldings')}
+                  </p>
+                ) : (
+                  <>
+                    <div className="h-40 w-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={allocation}
+                            dataKey="value"
+                            nameKey="name"
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={42}
+                            outerRadius={66}
+                            paddingAngle={3}
+                          >
+                            {allocation.map((entry) => (
+                              <Cell key={entry.name} fill={entry.colour} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={chartTooltipStyle}
+                            formatter={(value: unknown) => [
+                              formatFCFA(Number(value) || 0, language),
+                              t('dash.principal'),
+                            ]}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+
+                    <dl className="space-y-1.5 text-xs mt-auto">
+                      {allocation.map((entry) => (
+                        <div key={entry.name} className="flex items-center justify-between gap-2">
+                          <dt className="flex items-center gap-2 text-slate-600 dark:text-slate-400 min-w-0">
+                            <span
+                              aria-hidden="true"
+                              className="w-2.5 h-2.5 rounded-full shrink-0"
+                              style={{ backgroundColor: entry.colour }}
+                            />
+                            <span className="truncate">
+                              {t(`market.category.${entry.name.replace(' ', '')}` as TranslationKey)}
+                            </span>
+                          </dt>
+                          <dd className="font-mono font-bold text-slate-900 dark:text-white shrink-0">
+                            {formatShortFCFA(entry.value, language)}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  </>
+                )}
+              </section>
+            </div>
+
+            <div className="p-6 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 rounded-3xl text-white flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <h2 className="flex items-center gap-2 font-extrabold text-lg">
+                  <Gift className="w-5 h-5 text-amber-300" aria-hidden="true" />
+                  {t('ref.title')}
+                </h2>
+                <p className="text-xs text-emerald-50 max-w-xl leading-relaxed">{t('ref.body')}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDashboardTab('referrals')}
+                className="px-4 py-2.5 bg-white text-slate-900 hover:bg-slate-100 font-bold rounded-xl text-xs transition-colors shrink-0"
+              >
+                {t('dash.viewAll')}
+              </button>
+            </div>
+
+            <section className={`${card} overflow-hidden`}>
+              <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                    {t('dash.activeHoldings')}
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{t('dash.activeHoldingsBody')}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDashboardTab('portfolio')}
+                  className="text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:underline shrink-0"
+                >
+                  {t('dash.viewAll')}
+                </button>
+              </div>
+
+              {holdings.length === 0 ? (
+                <EmptyHoldings onBrowse={() => navigate('marketplace')} />
+              ) : (
+                <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {holdings.map((holding) => (
+                    <li key={holding.id}>
+                      <button
+                        type="button"
+                        onClick={() => navigateToOpportunity(holding.opportunityId)}
+                        className="w-full p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:bg-slate-50 dark:hover:bg-slate-850 transition-colors text-left"
+                      >
+                        <div className="space-y-1 min-w-0">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                            {t(`market.category.${holding.category.replace(' ', '')}` as TranslationKey)}
+                          </span>
+                          <p className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                            {tr(holding.opportunityTitle)}
+                          </p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400">
+                            {t('dash.maturity')}: {formatDate(holding.maturityDate, language)}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-6 self-stretch sm:self-auto justify-between shrink-0">
+                          <div className="text-left sm:text-right">
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold block">
+                              {t('dash.principal')}
+                            </span>
+                            <span className="text-sm font-bold font-mono text-slate-900 dark:text-white">
+                              {formatFCFA(holding.investedAmount, language)}
+                            </span>
+                          </div>
+                          <div className="text-left sm:text-right">
+                            <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold block">
+                              {t('dash.yieldReceived')}
+                            </span>
+                            <span className="text-sm font-bold font-mono text-emerald-700 dark:text-emerald-400">
+                              +{formatFCFA(holding.totalReturnsEarned, language)}
+                            </span>
+                          </div>
+                          <ChevronRight
+                            className="w-4 h-4 text-slate-400 hidden sm:block"
+                            aria-hidden="true"
+                          />
+                        </div>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </div>
+        )}
+
+        {dashboardTab === 'portfolio' && (
+          <div className="space-y-6">
             <div>
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                Detailed Investment Positions
+                {t('dash.holdingsTitle')}
               </h2>
-              <p className="text-xs text-slate-500">
-                Track your active equity and debt holdings, earned distributions, and maturity dates in Franc CFA.
-              </p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {holdings.map((h) => (
-              <div
-                key={h.id}
-                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-6 space-y-4 shadow-xs"
-              >
-                <div className="flex items-start justify-between">
-                  <div>
-                    <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
-                      {h.status} Position
-                    </span>
-                    <h3
-                      onClick={() => navigateToOpportunity(h.opportunityId)}
-                      className="text-base font-bold text-slate-900 dark:text-white hover:text-emerald-600 transition-colors cursor-pointer mt-2"
-                    >
-                      {h.opportunityTitle}
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-0.5">{h.category}</p>
-                  </div>
-                  <span className="font-mono text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-1 rounded-lg">
-                    {h.projectedReturnRate}% p.a.*
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl text-xs">
-                  <div>
-                    <span className="text-slate-500 text-[10px] uppercase font-bold block">Principal Invested</span>
-                    <span className="font-bold text-slate-900 dark:text-white font-mono text-sm">
-                      {formatFCFA(h.investedAmount)}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[10px] uppercase font-bold block">Total Yield Received</span>
-                    <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono text-sm">
-                      +{formatFCFA(h.totalReturnsEarned)}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[10px] uppercase font-bold block">Next Distribution</span>
-                    <span className="font-medium text-slate-900 dark:text-white">{h.nextDistributionDate}</span>
-                  </div>
-                  <div>
-                    <span className="text-slate-500 text-[10px] uppercase font-bold block">Maturity Horizon</span>
-                    <span className="font-medium text-slate-900 dark:text-white">{h.maturityDate}</span>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
-                  <span className="text-slate-400 text-[11px]">Subscribed: {h.investedDate}</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={(e) => openCertificate(h, e)}
-                      className="px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 rounded-lg font-bold flex items-center gap-1 cursor-pointer transition-colors text-[11px]"
-                      title="View Official Certificate of Beneficial Ownership"
-                    >
-                      <Award className="w-3.5 h-3.5 text-emerald-600" />
-                      <span>Official Certificate</span>
-                    </button>
-                    <button
-                      onClick={() => navigateToOpportunity(h.opportunityId)}
-                      className="text-slate-600 dark:text-slate-300 font-bold hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      <span>Project Details</span>
-                      <ChevronRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* TAB 3: REFERRALS & BONUSES */}
-      {dashboardTab === 'referrals' && (
-        <div className="space-y-8 max-w-5xl">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-extrabold text-slate-900 dark:text-white font-display">
-                GrowthFund Referral Program
-              </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                Share your referral code with colleagues and friends. You earn a <strong>1,000 XAF</strong> cash bonus for each successful referral!
-              </p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t('dash.holdingsBody')}</p>
             </div>
 
-            <button
-              onClick={() => simulateFriendReferral()}
-              className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl transition-all shadow-md flex items-center gap-2 cursor-pointer self-start sm:self-auto"
-            >
-              <Sparkles className="w-4 h-4 text-amber-300" />
-              Simulate Friend Referral (+1,000 XAF)
-            </button>
-          </div>
-
-          {/* Referral Code Card & Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Main Code Box (2 cols) */}
-            <div className="md:col-span-2 bg-white dark:bg-slate-900 p-6 sm:p-8 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-2xl">
-                  <Gift className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                    Your Personal Referral Code
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Earn 1,000 XAF for every verified member who signs up with your code
-                  </p>
-                </div>
-              </div>
-
-              {/* Code display & copy bar */}
-              <div className="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="text-center sm:text-left">
-                  <span className="text-[10px] text-slate-400 uppercase font-bold tracking-wider block">
-                    Referral Code
-                  </span>
-                  <span className="font-mono text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 tracking-wider">
-                    {user.referralCode}
-                  </span>
-                </div>
-
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <button
-                    onClick={handleCopyReferral}
-                    className="flex-1 sm:flex-none px-4 py-2.5 bg-slate-900 dark:bg-emerald-600 hover:bg-slate-800 dark:hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
-                  >
-                    <Copy className="w-4 h-4" />
-                    {copiedCode ? 'Copied!' : 'Copy Code'}
-                  </button>
-                  <button
-                    onClick={handleShareReferral}
-                    className="px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Share2 className="w-4 h-4" />
-                    Share Link
-                  </button>
-                </div>
-              </div>
-
-              {/* How it works 3-step grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 text-xs">
-                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-1">
-                  <span className="w-6 h-6 rounded-full bg-slate-900 dark:bg-slate-700 text-white font-bold flex items-center justify-center text-xs">
-                    1
-                  </span>
-                  <p className="font-bold text-slate-900 dark:text-white pt-1">Share Code</p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Send your referral code {user.referralCode} to your friends or family.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-1">
-                  <span className="w-6 h-6 rounded-full bg-slate-900 dark:bg-slate-700 text-white font-bold flex items-center justify-center text-xs">
-                    2
-                  </span>
-                  <p className="font-bold text-slate-900 dark:text-white pt-1">Friend Joins</p>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    They enter your code when creating an account on GrowthFund.
-                  </p>
-                </div>
-
-                <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 space-y-1">
-                  <span className="w-6 h-6 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs">
-                    3
-                  </span>
-                  <p className="font-bold text-emerald-900 dark:text-emerald-300 pt-1">+1,000 XAF Paid</p>
-                  <p className="text-[11px] text-emerald-700 dark:text-emerald-400">
-                    You instantly receive 1,000 XAF cash in your wallet balance!
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Apply a Referral Code Box (1 col) */}
-            <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-5 flex flex-col justify-between">
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <Award className="w-5 h-5 text-amber-500" />
-                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                    Apply a Referral Code
-                  </h3>
-                </div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                  Were you referred by a friend? Enter their code to receive a <strong>+1,000 XAF</strong> welcome bonus into your Cash Balance!
-                </p>
-
-                {user.referredBy ? (
-                  <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-xs flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span>Referred by <strong>{user.referredBy}</strong> (Bonus Credited).</span>
-                  </div>
-                ) : (
-                  <form onSubmit={handleApplyCodeSubmit} className="space-y-3 pt-1">
-                    <div>
-                      <input
-                        type="text"
-                        placeholder="e.g. GROWTH-XAF772"
-                        value={inputReferralCode}
-                        onChange={(e) => setInputReferralCode(e.target.value.toUpperCase())}
-                        className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-xs font-bold text-slate-900 dark:text-white uppercase focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        required
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      className="w-full py-2.5 bg-slate-900 dark:bg-emerald-600 hover:bg-slate-800 dark:hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-colors shadow-xs"
-                    >
-                      Claim 1,000 XAF Bonus
-                    </button>
-                  </form>
-                )}
-              </div>
-
-              <div className="p-3.5 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 space-y-1">
-                <span className="font-bold text-slate-700 dark:text-slate-300 block">Withdrawal Notice:</span>
-                <p>Referral bonuses are immediately available and can be withdrawn in standard multiples of 5,000 XAF.</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Referred Friends Table */}
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
-            <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Referred Members List ({user.referredFriends.length})
-                </h3>
-                <p className="text-xs text-slate-500">
-                  Total Bonus Earned: <strong className="text-emerald-600 dark:text-emerald-400 font-mono">{formatXAF(user.referralEarnings)}</strong>
-                </p>
-              </div>
-
-              <button
-                onClick={() => simulateFriendReferral()}
-                className="text-xs font-bold text-emerald-600 hover:underline flex items-center gap-1"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Invite Another
-              </button>
-            </div>
-
-            {user.referredFriends.length === 0 ? (
-              <div className="p-8 text-center text-xs text-slate-500">
-                <p>No referrals yet. Share your code to start earning 1,000 XAF per friend!</p>
+            {holdings.length === 0 ? (
+              <div className={`${card} overflow-hidden`}>
+                <EmptyHoldings onBrowse={() => navigate('marketplace')} />
               </div>
             ) : (
-              <div className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-                {user.referredFriends.map((f) => (
-                  <div key={f.id} className="p-4 sm:p-5 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center text-xs">
-                        {f.name.split(' ').map((n) => n[0]).join('')}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 gf-stagger">
+                {holdings.map((holding) => (
+                  <article key={holding.id} className={`${card} p-6 space-y-4`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                          {holding.status}
+                        </span>
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white mt-2">
+                          <button
+                            type="button"
+                            onClick={() => navigateToOpportunity(holding.opportunityId)}
+                            className="text-left hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+                          >
+                            {tr(holding.opportunityTitle)}
+                          </button>
+                        </h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          {t(`market.category.${holding.category.replace(' ', '')}` as TranslationKey)}
+                        </p>
                       </div>
-                      <div>
-                        <p className="font-bold text-slate-900 dark:text-white">{f.name}</p>
-                        <p className="text-slate-500 text-[11px]">{f.email} • Joined {f.date}</p>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <p className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
-                        +{formatXAF(f.bonus)}
-                      </p>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
-                        {f.status}
+                      <span className="font-mono text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-1 rounded-lg shrink-0">
+                        {formatPercent(holding.projectedReturnRate, language)}
                       </span>
                     </div>
-                  </div>
+
+                    <dl className="grid grid-cols-2 gap-3 p-3.5 bg-slate-50 dark:bg-slate-800/60 rounded-2xl text-xs">
+                      <div>
+                        <dt className="text-slate-500 dark:text-slate-400 text-[10px] uppercase font-bold">
+                          {t('dash.principal')}
+                        </dt>
+                        <dd className="font-bold text-slate-900 dark:text-white font-mono text-sm">
+                          {formatFCFA(holding.investedAmount, language)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-slate-500 dark:text-slate-400 text-[10px] uppercase font-bold">
+                          {t('dash.yieldReceived')}
+                        </dt>
+                        <dd className="font-bold text-emerald-700 dark:text-emerald-400 font-mono text-sm">
+                          +{formatFCFA(holding.totalReturnsEarned, language)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-slate-500 dark:text-slate-400 text-[10px] uppercase font-bold">
+                          {t('dash.nextDistribution')}
+                        </dt>
+                        <dd className="font-medium text-slate-900 dark:text-white">
+                          {formatDate(holding.nextDistributionDate, language)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-slate-500 dark:text-slate-400 text-[10px] uppercase font-bold">
+                          {t('dash.maturity')}
+                        </dt>
+                        <dd className="font-medium text-slate-900 dark:text-white">
+                          {formatDate(holding.maturityDate, language)}
+                        </dd>
+                      </div>
+                    </dl>
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                      <span className="text-slate-400 text-[11px]">
+                        {t('dash.subscribed')} {formatDate(holding.investedDate, language)}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setCertificateHolding(holding)}
+                        className="px-2.5 py-1.5 bg-emerald-50 dark:bg-emerald-950/80 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900 rounded-lg font-bold flex items-center gap-1 transition-colors text-[11px]"
+                      >
+                        <Award className="w-3.5 h-3.5" aria-hidden="true" />
+                        {t('dash.certificate')}
+                      </button>
+                    </div>
+                  </article>
                 ))}
               </div>
             )}
           </div>
-        </div>
-      )}
+        )}
 
-      {/* TAB 4: TRANSACTIONS */}
-      {dashboardTab === 'transactions' && (
-        <div className="space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                Transaction Ledger & Cash Flow (Franc CFA)
-              </h2>
-              <p className="text-xs text-slate-500">
-                Audited record of all capital investments, Mobile Money cash-ins, 5,000 XAF withdrawals, and referral payouts.
-              </p>
-            </div>
+        {dashboardTab === 'referrals' && (
+          <div className="space-y-8 max-w-5xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-extrabold text-slate-900 dark:text-white font-display">
+                  {t('ref.title')}
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xl">
+                  {t('ref.body')}
+                </p>
+              </div>
 
-            <div className="flex items-center gap-2">
               <button
-                onClick={handleExportCSV}
-                className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 cursor-pointer"
+                type="button"
+                onClick={() => void simulateFriendReferral()}
+                title={t('ref.simulateHint')}
+                className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-2 self-start sm:self-auto shrink-0"
               >
-                <FileSpreadsheet className="w-4 h-4" />
-                Export CSV
+                <Sparkles className="w-4 h-4 text-amber-300" aria-hidden="true" />
+                {t('ref.simulate')}
               </button>
             </div>
-          </div>
 
-          {/* Filter Chips */}
-          <div className="flex gap-2 overflow-x-auto pb-1 text-xs scrollbar-none">
-            {['All', 'Investment', 'Distribution', 'Deposit', 'Withdrawal', 'Referral Bonus'].map((type) => (
-              <button
-                key={type}
-                onClick={() => setTxFilter(type as any)}
-                className={`px-3.5 py-1.5 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap ${
-                  txFilter === type
-                    ? 'bg-slate-900 dark:bg-emerald-600 text-white shadow-xs'
-                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750'
-                }`}
-              >
-                {type}
-              </button>
-            ))}
-          </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <section className={`md:col-span-2 ${card} p-6 sm:p-8 space-y-6`}>
+                <div className="flex items-center gap-3">
+                  <span
+                    aria-hidden="true"
+                    className="p-3 bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 rounded-2xl"
+                  >
+                    <Gift className="w-6 h-6" />
+                  </span>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    {t('ref.yourCode')}
+                  </h3>
+                </div>
 
-          {/* Transactions Table */}
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-xs">
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {filteredTransactions.map((tx) => {
-                const isPositive = tx.type === 'Distribution' || tx.type === 'Deposit' || tx.type === 'Referral Bonus';
-                return (
-                  <div key={tx.id} className="p-4 sm:p-5 flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-3.5">
-                      <div
-                        className={`p-2.5 rounded-xl ${
-                          tx.type === 'Distribution'
-                            ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600'
-                            : tx.type === 'Investment'
-                            ? 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
-                            : tx.type === 'Deposit'
-                            ? 'bg-blue-100 dark:bg-blue-950 text-blue-600'
-                            : tx.type === 'Referral Bonus'
-                            ? 'bg-purple-100 dark:bg-purple-950 text-purple-600'
-                            : 'bg-amber-100 dark:bg-amber-950 text-amber-600'
+                <div className="p-4 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <p className="text-center sm:text-left">
+                    <span className="font-mono text-xl sm:text-2xl font-extrabold text-emerald-700 dark:text-emerald-400 tracking-wider break-all">
+                      {user.referralCode}
+                    </span>
+                  </p>
+
+                  <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                    <button
+                      type="button"
+                      onClick={handleCopyCode}
+                      className="flex-1 sm:flex-none px-4 py-2.5 bg-slate-900 dark:bg-emerald-700 hover:bg-slate-800 dark:hover:bg-emerald-600 text-white font-bold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      {hasCopied ? (
+                        <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
+                      ) : (
+                        <Copy className="w-4 h-4" aria-hidden="true" />
+                      )}
+                      {hasCopied ? t('ref.copied') : t('ref.copy')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void copyToClipboard(
+                          `${window.location.origin}${window.location.pathname}#/?ref=${user.referralCode}`,
+                          'toast.linkCopied',
+                        )
+                      }
+                      className="px-3.5 py-2.5 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 font-bold text-xs rounded-xl transition-colors flex items-center gap-1.5"
+                    >
+                      <Share2 className="w-4 h-4" aria-hidden="true" />
+                      <span className="hidden sm:inline">{t('ref.shareLink')}</span>
+                    </button>
+                  </div>
+                </div>
+
+                <ol className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  {[
+                    { title: t('ref.step1'), body: t('ref.step1Body'), highlight: false },
+                    { title: t('ref.step2'), body: t('ref.step2Body'), highlight: false },
+                    { title: t('ref.step3'), body: t('ref.step3Body'), highlight: true },
+                  ].map((step, index) => (
+                    <li
+                      key={step.title}
+                      className={`p-3.5 rounded-2xl border space-y-1 ${
+                        step.highlight
+                          ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
+                          : 'bg-slate-50 dark:bg-slate-850 border-slate-200 dark:border-slate-800'
+                      }`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`w-6 h-6 rounded-full text-white font-bold flex items-center justify-center text-xs ${
+                          step.highlight ? 'bg-emerald-600' : 'bg-slate-900 dark:bg-slate-700'
                         }`}
                       >
-                        {tx.type === 'Investment' && <Briefcase className="w-4 h-4" />}
-                        {tx.type === 'Distribution' && <TrendingUp className="w-4 h-4" />}
-                        {tx.type === 'Deposit' && <ArrowDownLeft className="w-4 h-4" />}
-                        {tx.type === 'Withdrawal' && <ArrowUpRight className="w-4 h-4" />}
-                        {tx.type === 'Referral Bonus' && <Gift className="w-4 h-4" />}
+                        {index + 1}
+                      </span>
+                      <p className="font-bold text-slate-900 dark:text-white pt-1">{step.title}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                        {step.body}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
+              </section>
+
+              <section className={`${card} p-6 space-y-5 flex flex-col justify-between`}>
+                <div className="space-y-3">
+                  <h3 className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
+                    <Award className="w-5 h-5 text-amber-500" aria-hidden="true" />
+                    {t('ref.apply')}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    {t('ref.applyBody')}
+                  </p>
+
+                  {user.referredBy ? (
+                    <p className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 text-xs flex items-start gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-px" aria-hidden="true" />
+                      {t('ref.alreadyReferred', { code: user.referredBy })}
+                    </p>
+                  ) : (
+                    <form onSubmit={handleApplyReferral} className="space-y-3 pt-1">
+                      <label htmlFor="referral-input" className="sr-only">
+                        {t('ref.apply')}
+                      </label>
+                      <input
+                        id="referral-input"
+                        type="text"
+                        placeholder="GROWTH-XAF772"
+                        value={referralInput}
+                        onChange={(event) => setReferralInput(event.target.value.toUpperCase())}
+                        required
+                        className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-mono text-xs font-bold text-slate-900 dark:text-white uppercase focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                      />
+                      <button
+                        type="submit"
+                        className="w-full py-2.5 bg-slate-900 dark:bg-emerald-700 hover:bg-slate-800 dark:hover:bg-emerald-600 text-white font-bold rounded-xl text-xs transition-colors"
+                      >
+                        {t('ref.applyCta')}
+                      </button>
+                    </form>
+                  )}
+                </div>
+
+                <p className="p-3.5 bg-slate-50 dark:bg-slate-850 rounded-2xl border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                  {t('ref.withdrawNotice')}
+                </p>
+              </section>
+            </div>
+
+            <section className={`${card} overflow-hidden`}>
+              <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                    {t('ref.membersList', { count: user.referredFriends.length })}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {t('ref.totalEarned')}:{' '}
+                    <strong className="text-emerald-700 dark:text-emerald-400 font-mono">
+                      {formatXAF(user.referralEarnings, language)}
+                    </strong>
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => void simulateFriendReferral()}
+                  className="text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:underline flex items-center gap-1"
+                >
+                  <Plus className="w-3.5 h-3.5" aria-hidden="true" />
+                  {t('ref.simulate')}
+                </button>
+              </div>
+
+              {user.referredFriends.length === 0 ? (
+                <p className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">{t('ref.none')}</p>
+              ) : (
+                <ul className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
+                  {user.referredFriends.map((friend) => (
+                    <li key={friend.id} className="p-4 sm:p-5 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span
+                          aria-hidden="true"
+                          className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold flex items-center justify-center shrink-0"
+                        >
+                          {friend.name
+                            .split(' ')
+                            .map((part) => part[0])
+                            .slice(0, 2)
+                            .join('')}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 dark:text-white truncate">
+                            {friend.name}
+                          </p>
+                          <p className="text-slate-500 dark:text-slate-400 text-[11px] truncate">
+                            {friend.email} · {t('ref.joined', { date: formatDate(friend.date, language) })}
+                          </p>
+                        </div>
                       </div>
 
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-900 dark:text-white text-sm">
-                            {tx.projectName}
+                      <div className="text-right shrink-0">
+                        <p className="font-mono font-bold text-emerald-700 dark:text-emerald-400 text-sm">
+                          +{formatXAF(friend.bonus, language)}
+                        </p>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                          {friend.status}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </div>
+        )}
+
+        {dashboardTab === 'transactions' && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">{t('dash.ledger')}</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 max-w-2xl">{t('dash.ledgerBody')}</p>
+              </div>
+
+              <button
+                type="button"
+                onClick={exportCsv}
+                disabled={filteredTransactions.length === 0}
+                className="px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-750 text-xs font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5 shrink-0 disabled:opacity-50 transition-colors"
+              >
+                <FileSpreadsheet className="w-4 h-4" aria-hidden="true" />
+                {t('dash.exportCsv')}
+              </button>
+            </div>
+
+            <div
+              role="group"
+              aria-label={t('dash.filterLabel')}
+              className="flex gap-2 overflow-x-auto pb-1 text-xs scrollbar-none"
+            >
+              {TX_FILTERS.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setTxFilter(type)}
+                  aria-pressed={txFilter === type}
+                  className={`px-3.5 py-1.5 rounded-xl font-bold whitespace-nowrap transition-colors ${
+                    txFilter === type
+                      ? 'bg-slate-900 dark:bg-emerald-700 text-white'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-750'
+                  }`}
+                >
+                  {t(`tx.${type}` as TranslationKey)}
+                </button>
+              ))}
+            </div>
+
+            <div className={`${card} overflow-hidden`}>
+              {filteredTransactions.length === 0 ? (
+                <p className="p-8 text-center text-xs text-slate-500 dark:text-slate-400">{t('dash.noTransactions')}</p>
+              ) : (
+                <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {filteredTransactions.map((tx) => {
+                    const isCredit = CREDIT_TYPES.includes(tx.type);
+                    const Icon =
+                      tx.type === 'Investment'
+                        ? Briefcase
+                        : tx.type === 'Return Distribution'
+                          ? TrendingUp
+                          : tx.type === 'Deposit'
+                            ? ArrowDownLeft
+                            : tx.type === 'Withdrawal'
+                              ? ArrowUpRight
+                              : Gift;
+
+                    return (
+                      <li
+                        key={tx.id}
+                        className="p-4 sm:p-5 flex items-center justify-between gap-3 text-xs"
+                      >
+                        <div className="flex items-center gap-3.5 min-w-0">
+                          <span
+                            aria-hidden="true"
+                            className={`p-2.5 rounded-xl shrink-0 ${
+                              isCredit
+                                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400'
+                                : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                            }`}
+                          >
+                            <Icon className="w-4 h-4" />
                           </span>
-                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
-                            {tx.type}
+
+                          <div className="min-w-0">
+                            <p className="flex flex-wrap items-center gap-2">
+                              <span className="font-bold text-slate-900 dark:text-white text-sm truncate">
+                                {typeof tx.projectName === 'string'
+                                  ? tx.projectName
+                                  : tr(tx.projectName)}
+                              </span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 shrink-0">
+                                {t(`tx.${tx.type}` as TranslationKey)}
+                              </span>
+                            </p>
+                            <p className="text-slate-500 dark:text-slate-400 text-[11px] mt-0.5 truncate">
+                              {formatDate(tx.date, language)} · {t('dash.reference')}: {tx.referenceId}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0">
+                          <p
+                            className={`font-mono text-sm font-bold ${
+                              isCredit
+                                ? 'text-emerald-700 dark:text-emerald-400'
+                                : 'text-slate-900 dark:text-white'
+                            }`}
+                          >
+                            {isCredit ? '+' : '−'}
+                            {formatFCFA(tx.amount, language)}
+                          </p>
+                          <span
+                            className={`text-[10px] font-bold ${
+                              tx.status === 'Failed'
+                                ? 'text-red-600 dark:text-red-400'
+                                : tx.status === 'Processing'
+                                  ? 'text-amber-600 dark:text-amber-400'
+                                  : 'text-emerald-700 dark:text-emerald-400'
+                            }`}
+                          >
+                            {t(`tx.status.${tx.status}` as TranslationKey)}
                           </span>
                         </div>
-                        <p className="text-slate-500 text-[11px] mt-0.5">
-                          {tx.date} • Ref: {tx.referenceId}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="text-right">
-                      <p
-                        className={`font-mono text-sm font-bold ${
-                          isPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-900 dark:text-white'
-                        }`}
-                      >
-                        {isPositive ? '+' : '-'}{formatFCFA(tx.amount)}
-                      </p>
-                      <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                        {tx.status}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* TAB 5: IDENTITY & VERIFICATION */}
-      {dashboardTab === 'verification' && (
-        <div className="space-y-6 max-w-3xl">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-              Identity Verification & Compliance Profile
-            </h2>
-            <p className="text-xs text-slate-500">
-              Regulatory compliance profile and verified investor tier.
-            </p>
-          </div>
-
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-6 shadow-xs">
-            <div className="flex items-center justify-between p-4 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800 text-xs">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-emerald-600 text-white rounded-xl">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-emerald-900 dark:text-emerald-200 text-sm">
-                    Current Tier: {user.kycTier}
-                  </h4>
-                  <p className="text-emerald-700 dark:text-emerald-400 mt-0.5">
-                    Your identity has been verified under AML & financial regulations.
-                  </p>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setIsKYCModalOpen(true)}
-                className="px-3.5 py-2 bg-white dark:bg-slate-850 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 rounded-xl font-bold hover:bg-emerald-100 transition-colors"
-              >
-                Re-Verify / Upgrade
-              </button>
+        {dashboardTab === 'verification' && (
+          <div className="space-y-6 max-w-3xl">
+            <div>
+              <h2 className="text-lg font-bold text-slate-900 dark:text-white">{t('kyc.title')}</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{t('kyc.subtitle')}</p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-1">
-                <span className="text-slate-500 font-bold block">Standard Retail Allocation Limit</span>
-                <span className="font-bold text-slate-900 dark:text-white text-base">50,000,000 XAF / Year</span>
-                <p className="text-[11px] text-slate-400">Available to all verified individuals.</p>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-1">
-                <span className="text-slate-500 font-bold block">Accredited Tier Limit</span>
-                <span className="font-bold text-slate-900 dark:text-white text-base">Unlimited</span>
-                <p className="text-[11px] text-slate-400">Institutional and high net-worth investors.</p>
-              </div>
-            </div>
-
-            <div className="space-y-3 pt-2">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
-                Tax & Legal Identification on File
-              </h4>
-              <div className="space-y-2 text-xs">
-                {[
-                  { name: 'National ID / Passport Verification (AML Tier 1)', date: 'Verified Valid' },
-                  { name: 'Mobile Money Phone / Account Proof on File', date: 'Active' },
-                  { name: 'GrowthFund Investor Electronic Terms of Service', date: 'Signed' },
-                ].map((doc, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850"
+            <div className={`${card} p-6 space-y-6`}>
+              <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-emerald-50 dark:bg-emerald-950/40 rounded-2xl border border-emerald-200 dark:border-emerald-800 text-xs">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span
+                    aria-hidden="true"
+                    className="p-2 bg-emerald-700 text-white rounded-xl shrink-0"
                   >
-                    <span className="font-medium text-slate-800 dark:text-slate-200">{doc.name}</span>
-                    <span className="text-emerald-600 dark:text-emerald-400 font-bold text-[11px]">{doc.date}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Cloud Firestore & Firebase Auth Security Card */}
-            <div className="p-4 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 flex items-start gap-3.5 text-xs">
-              <div className="p-2 bg-emerald-600 text-white rounded-xl shrink-0 mt-0.5">
-                <Database className="w-4 h-4" />
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-slate-900 dark:text-white">Firebase Auth & Firestore Data Synchronization</span>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300">
-                    Live Real-Time
+                    <ShieldCheck className="w-5 h-5" />
                   </span>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-emerald-900 dark:text-emerald-200 text-sm">
+                      {t('kyc.currentTier')}: {t(`kyc.tier.${user.kycTier}` as TranslationKey)}
+                    </h3>
+                    <p className="text-emerald-700 dark:text-emerald-400 mt-0.5">
+                      {t('kyc.verified')}
+                    </p>
+                  </div>
                 </div>
-                <p className="text-slate-600 dark:text-slate-400 text-[11px]">
-                  Your investor profile, portfolio holdings, cash-in/out records, and referral codes are encrypted and persisted in Google Cloud Firestore database.
-                </p>
-                {user.uid && (
-                  <p className="font-mono text-[10px] text-slate-500 dark:text-slate-400 pt-1">
-                    Firebase UID: <span className="font-bold text-slate-700 dark:text-slate-300">{user.uid}</span>
-                  </p>
-                )}
+
+                <button
+                  type="button"
+                  onClick={() => openModal('kyc')}
+                  className="px-3.5 py-2 bg-white dark:bg-slate-850 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-200 rounded-xl font-bold hover:bg-emerald-100 dark:hover:bg-emerald-950 transition-colors shrink-0"
+                >
+                  {t('kyc.upgrade')}
+                </button>
+              </div>
+
+              <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-1">
+                  <dt className="text-slate-500 dark:text-slate-400 font-bold">{t('kyc.retailLimit')}</dt>
+                  <dd className="font-bold text-slate-900 dark:text-white text-base">
+                    {formatFCFA(50_000_000, language)}
+                  </dd>
+                  <dd className="text-[11px] text-slate-400">{t('kyc.retailLimitBody')}</dd>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-800 space-y-1">
+                  <dt className="text-slate-500 dark:text-slate-400 font-bold">{t('kyc.accreditedLimit')}</dt>
+                  <dd className="font-bold text-slate-900 dark:text-white text-base">
+                    {t('kyc.unlimited')}
+                  </dd>
+                  <dd className="text-[11px] text-slate-400">{t('kyc.accreditedLimitBody')}</dd>
+                </div>
+              </dl>
+
+              <div className="space-y-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white">
+                  {t('kyc.docsOnFile')}
+                </h3>
+                <ul className="space-y-2 text-xs">
+                  {[
+                    { label: t('kyc.doc.idVerified'), status: t('kyc.docStatus.valid') },
+                    { label: t('kyc.doc.momoProof'), status: t('kyc.docStatus.active') },
+                    { label: t('kyc.doc.terms'), status: t('kyc.docStatus.signed') },
+                  ].map((item) => (
+                    <li
+                      key={item.label}
+                      className="flex items-center justify-between gap-3 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-850"
+                    >
+                      <span className="font-medium text-slate-800 dark:text-slate-200">
+                        {item.label}
+                      </span>
+                      <span className="text-emerald-700 dark:text-emerald-400 font-bold text-[11px] shrink-0">
+                        {item.status}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Official Certificate of Investment Modal */}
       <CertificateModal
-        holding={selectedHoldingForCert}
-        isOpen={isCertModalOpen}
-        onClose={() => {
-          setIsCertModalOpen(false);
-          setSelectedHoldingForCert(null);
-        }}
+        holding={certificateHolding}
+        isOpen={certificateHolding !== null}
+        onClose={() => setCertificateHolding(null)}
       />
+    </div>
+  );
+};
+
+interface StatCardProps {
+  icon: React.ComponentType<{ className?: string }>;
+  tone: string;
+  label: string;
+  value: string;
+  footnote: React.ReactNode;
+  onClick?: () => void;
+}
+
+const StatCard: React.FC<StatCardProps> = ({ icon: Icon, tone, label, value, footnote, onClick }) => {
+  const content = (
+    <>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-bold text-slate-500 dark:text-slate-400">{label}</span>
+        <span aria-hidden="true" className={`p-2 rounded-xl shrink-0 ${tone}`}>
+          <Icon className="w-4 h-4" />
+        </span>
+      </div>
+      <p className="text-xl sm:text-2xl font-extrabold font-mono text-slate-900 dark:text-white truncate">
+        {value}
+      </p>
+      <p className="text-[11px] text-slate-500 dark:text-slate-400">{footnote}</p>
+    </>
+  );
+
+  const className =
+    'bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200 dark:border-slate-800 space-y-2 text-left w-full';
+
+  return onClick ? (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${className} hover:border-emerald-500/60 hover:-translate-y-0.5 transition-all`}
+    >
+      {content}
+    </button>
+  ) : (
+    <div className={className}>{content}</div>
+  );
+};
+
+const EmptyHoldings: React.FC<{ onBrowse: () => void }> = ({ onBrowse }) => {
+  const { t } = useI18n();
+  return (
+    <div className="p-10 text-center space-y-3">
+      <Briefcase className="w-8 h-8 text-slate-400 mx-auto" aria-hidden="true" />
+      <p className="text-sm font-bold text-slate-900 dark:text-white">{t('dash.noHoldings')}</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">{t('dash.noHoldingsBody')}</p>
+      <button
+        type="button"
+        onClick={onBrowse}
+        className="px-4 py-2.5 bg-slate-900 dark:bg-emerald-700 text-white text-xs font-bold rounded-xl"
+      >
+        {t('nav.opportunities')}
+      </button>
     </div>
   );
 };
