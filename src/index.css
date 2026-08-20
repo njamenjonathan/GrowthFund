@@ -1,33 +1,209 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------
+   Design tokens
+   The codebase uses slate-850 / slate-750 / slate-350 extensively.
+   These are NOT part of Tailwind's default palette, so every one of
+   those utilities silently produced no style. Defining them here
+   makes the intended surface hierarchy actually render.
+---------------------------------------------------------------- */
+@theme {
+  --color-slate-350: oklch(0.809 0.019 252.9);
+  --color-slate-750: oklch(0.329 0.037 259.7);
+  --color-slate-850: oklch(0.244 0.031 262.1);
+
+  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* Motion scale — every animation references these so that a single
+     change (or the reduced-motion block below) retunes the whole app. */
+  --gf-dur-fast: 140ms;
+  --gf-dur-base: 240ms;
+  --gf-dur-slow: 420ms;
+  --gf-ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
-    @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased font-sans transition-colors duration-200;
+    @apply bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 antialiased font-sans;
+  }
+
+  /* Visible, consistent keyboard focus everywhere. The previous code
+     used focus:outline-none on interactive elements without always
+     supplying a replacement ring, which left keyboard users stranded. */
+  :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+    @apply outline-2 outline-offset-2 outline-emerald-600 dark:outline-emerald-400;
+  }
+
+  /* Never remove focus for keyboard users, even where a component
+     sets focus:outline-none. */
+  :focus-visible {
+    outline-style: solid;
   }
 }
 
-/* High Contrast Accessibility Theme Support */
-.high-contrast {
-  --tw-border-opacity: 1 !important;
-  color-scheme: light dark;
+@layer utilities {
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Screen-reader-only text that becomes visible on focus (skip link). */
+  .sr-only-focusable:not(:focus):not(:focus-within) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
 }
 
-.high-contrast body,
-.high-contrast {
-  contrast: 125%;
+/* ---------------------------------------------------------------
+   Animations
+---------------------------------------------------------------- */
+@keyframes gf-fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
 }
 
-.high-contrast button,
-.high-contrast input,
-.high-contrast select,
-.high-contrast textarea,
-.high-contrast [role="dialog"],
-.high-contrast .border {
+@keyframes gf-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes gf-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes gf-slide-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes gf-slide-in-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes gf-shimmer {
+  100% { transform: translateX(100%); }
+}
+
+.gf-animate-fade-up   { animation: gf-fade-up var(--gf-dur-slow) var(--gf-ease) both; }
+.gf-animate-fade-in   { animation: gf-fade-in var(--gf-dur-base) var(--gf-ease) both; }
+.gf-animate-scale-in  { animation: gf-scale-in var(--gf-dur-base) var(--gf-ease) both; }
+.gf-animate-slide-down{ animation: gf-slide-down var(--gf-dur-fast) var(--gf-ease) both; }
+.gf-animate-toast     { animation: gf-slide-in-right var(--gf-dur-base) var(--gf-ease) both; }
+
+/* Staggered reveal for grids/lists. */
+.gf-stagger > * {
+  animation: gf-fade-up var(--gf-dur-slow) var(--gf-ease) both;
+}
+.gf-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.gf-stagger > *:nth-child(2) { animation-delay: 60ms; }
+.gf-stagger > *:nth-child(3) { animation-delay: 120ms; }
+.gf-stagger > *:nth-child(4) { animation-delay: 180ms; }
+.gf-stagger > *:nth-child(5) { animation-delay: 240ms; }
+.gf-stagger > *:nth-child(6) { animation-delay: 300ms; }
+.gf-stagger > *:nth-child(n + 7) { animation-delay: 360ms; }
+
+/* Elements revealed on scroll by useReveal(). */
+.gf-reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity var(--gf-dur-slow) var(--gf-ease),
+    transform var(--gf-dur-slow) var(--gf-ease);
+  will-change: opacity, transform;
+}
+.gf-reveal[data-revealed="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+/* ---------------------------------------------------------------
+   High-contrast accessibility theme
+---------------------------------------------------------------- */
+.high-contrast {
+  --gf-hc-fg: #000;
+  --gf-hc-bg: #fff;
+}
+
+.high-contrast:where(.dark) {
+  --gf-hc-fg: #fff;
+  --gf-hc-bg: #000;
+}
+
+.high-contrast body {
+  background: var(--gf-hc-bg);
+  color: var(--gf-hc-fg);
+}
+
+.high-contrast :where(button, input, select, textarea, [role="dialog"], .border) {
   border-width: 2px !important;
   border-color: currentColor !important;
 }
 
-.high-contrast a,
-.high-contrast button {
+.high-contrast :where(a, button) {
   text-decoration-thickness: 2px;
+}
+
+/* Muted greys fail contrast targets; pin them to the foreground colour. */
+.high-contrast :where(.text-slate-400, .text-slate-500, .text-slate-600) {
+  color: var(--gf-hc-fg) !important;
+}
+
+/* ---------------------------------------------------------------
+   Reduced motion — honours the OS setting and the in-app toggle
+---------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .gf-reveal { opacity: 1; transform: none; }
+}
+
+.gf-reduce-motion,
+.gf-reduce-motion *,
+.gf-reduce-motion *::before,
+.gf-reduce-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+.gf-reduce-motion .gf-reveal { opacity: 1; transform: none; }
+
+/* ---------------------------------------------------------------
+   Print — the investment certificate is designed to be printed
+---------------------------------------------------------------- */
+@media print {
+  .gf-no-print { display: none !important; }
+
+  .gf-print-target {
+    position: static !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
 }
