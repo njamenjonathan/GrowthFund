@@ -2,6 +2,7 @@ import React from 'react';
 import { ArrowRight, Bookmark, Clock, Coins, MapPin, Sparkles, TrendingUp, Users } from 'lucide-react';
 import { InvestmentOpportunity } from '../types';
 import { useApp } from '../context/AppContext';
+import { OpportunityImage } from './OpportunityImage';
 import { useI18n } from '../i18n/LanguageContext';
 import { formatFCFA, formatPercent, formatShortFCFA } from '../utils/format';
 
@@ -37,13 +38,11 @@ export const OpportunityCard: React.FC<OpportunityCardProps> = ({ opportunity, f
       }`}
     >
       <div className="relative h-44 w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
-        <img
+        <OpportunityImage
           src={opportunity.imageUrl}
-          alt=""
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-          referrerPolicy="no-referrer"
-          loading="lazy"
-          decoding="async"
+          category={opportunity.category}
+          seed={opportunity.id}
+          className="w-full h-full group-hover:scale-105 transition-transform duration-500"
         />
         <div
           aria-hidden="true"

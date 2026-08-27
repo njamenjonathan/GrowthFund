@@ -1,17 +1,34 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowRight, CheckCircle2, Smartphone, TrendingUp, Wallet } from 'lucide-react';
+import {
+  ArrowRight,
+  CheckCircle2,
+  Lock,
+  Smartphone,
+  TrendingUp,
+  Wallet,
+} from 'lucide-react';
 import { Modal } from './Modal';
+import { TierLadder } from './TierLadder';
 import { useApp } from '../context/AppContext';
 import { useI18n } from '../i18n/LanguageContext';
-import { formatFCFA, formatPercent } from '../utils/format';
+import { formatDate, formatFCFA, formatPercent } from '../utils/format';
+import {
+  INVESTMENT_STEP,
+  MIN_INVESTMENT,
+  addMonthsIso,
+  effectiveRate,
+  lockMonthsFor,
+  nextTier,
+  projectedMaturityValue,
+  projectedYieldOverLock,
+  tierForAmount,
+  termLabel,
+} from '../lib/investmentTiers';
+import { todayIso } from '../utils/format';
 
-const PRESETS = [25_000, 50_000, 100_000, 250_000, 500_000, 1_000_000];
-
-const YEARS_BY_DURATION: Record<string, number> = {
-  '1-3 years': 2,
-  '3-5 years': 4,
-  '5+ years': 6,
-};
+/* Each preset sits at the entry point of a tier, so the ladder is visible
+   in the choices themselves rather than only in the table below. */
+const PRESETS = [5_000, 25_000, 50_000, 250_000, 500_000, 1_000_000];
 
 export const InvestModal: React.FC = () => {
   const { t, tr, language } = useI18n();
@@ -31,13 +48,17 @@ export const InvestModal: React.FC = () => {
   const [fundingSource, setFundingSource] = useState<'balance' | 'momo'>('balance');
   const [hasAcknowledgedRisk, setHasAcknowledgedRisk] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [receipt, setReceipt] = useState<{ id: string; amount: number } | null>(null);
+  const [receipt, setReceipt] = useState<{
+    id: string;
+    amount: number;
+    unlockDate: string;
+  } | null>(null);
 
   // Reset per opening. The old modal initialised its state once at mount
   // and then kept whatever the previous visitor had typed.
   useEffect(() => {
     if (!isOpen || !investingOpportunity) return;
-    setAmountText(String(investingOpportunity.minInvestment));
+    setAmountText(String(Math.max(investingOpportunity.minInvestment, MIN_INVESTMENT)));
     setFundingSource('balance');
     setHasAcknowledgedRisk(false);
     setIsSubmitting(false);
@@ -52,15 +73,47 @@ export const InvestModal: React.FC = () => {
   if (!isOpen || !investingOpportunity) return null;
 
   const opportunity = investingOpportunity;
-  const minimum = opportunity.minInvestment;
-  const averageRate = (opportunity.projectedReturnMin + opportunity.projectedReturnMax) / 2;
-  const years = YEARS_BY_DURATION[opportunity.durationCategory] ?? 4;
-  const annualIncome = (amount * averageRate) / 100;
-  const maturityValue = amount + annualIncome * years;
+  const minimum = Math.max(opportunity.minInvestment, MIN_INVESTMENT);
+
+  // Amount drives everything below: the tier sets the commitment term and
+  // the rate, and those in turn set the projected yield.
+  const tier = tierForAmount(amount);
+  const upgrade = nextTier(tier);
+  const lockMonths = lockMonthsFor(amount);
+  const rate = effectiveRate(
+    amount,
+    opportunity.projectedReturnMin,
+    opportunity.projectedReturnMax,
+  );
+  const termYield = projectedYieldOverLock(
+    amount,
+    opportunity.projectedReturnMin,
+    opportunity.projectedReturnMax,
+  );
+  const valueAtUnlock = projectedMaturityValue(
+    amount,
+    opportunity.projectedReturnMin,
+    opportunity.projectedReturnMax,
+  );
+  const unlockDate = addMonthsIso(todayIso(), lockMonths);
+
+  const upgradeRate = upgrade
+    ? effectiveRate(
+        upgrade.minAmount,
+        opportunity.projectedReturnMin,
+        opportunity.projectedReturnMax,
+      )
+    : 0;
 
   const isBelowMinimum = amount < minimum;
+  const isOffStep = amount % INVESTMENT_STEP !== 0;
   const hasInsufficientBalance = fundingSource === 'balance' && amount > user.walletBalance;
-  const canSubmit = !isBelowMinimum && !hasInsufficientBalance && hasAcknowledgedRisk && !isSubmitting;
+  const canSubmit =
+    !isBelowMinimum &&
+    !isOffStep &&
+    !hasInsufficientBalance &&
+    hasAcknowledgedRisk &&
+    !isSubmitting;
 
   const handleConfirm = async () => {
     if (!canSubmit) return;
@@ -72,7 +125,11 @@ export const InvestModal: React.FC = () => {
       // investment still showed a confirmation.
       const succeeded = await executeInvestment(opportunity.id, amount);
       if (succeeded) {
-        setReceipt({ id: `GF-INV-${Math.floor(100_000 + Math.random() * 900_000)}`, amount });
+        setReceipt({
+          id: `GF-INV-${Math.floor(100_000 + Math.random() * 900_000)}`,
+          amount,
+          unlockDate,
+        });
       }
     } finally {
       setIsSubmitting(false);
@@ -120,9 +177,19 @@ export const InvestModal: React.FC = () => {
               </dd>
             </div>
             <div className="flex justify-between gap-3">
-              <dt className="text-slate-500 dark:text-slate-400">{t('opp.horizon')}</dt>
+              <dt className="text-slate-500 dark:text-slate-400">{t('tier.label')}</dt>
+              <dd className="font-medium text-slate-900 dark:text-white">{tr(tier.name)}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-slate-500 dark:text-slate-400">{t('lock.yourTerm')}</dt>
               <dd className="font-medium text-slate-900 dark:text-white">
-                {tr(opportunity.durationYears)}
+                {t(termLabel(lockMonths).key, { count: termLabel(lockMonths).count })}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt className="text-slate-500 dark:text-slate-400">{t('lock.locked')}</dt>
+              <dd className="font-bold text-amber-700 dark:text-amber-400">
+                {t('lock.unlocksOn', { date: formatDate(receipt.unlockDate, language) })}
               </dd>
             </div>
           </dl>
@@ -180,10 +247,10 @@ export const InvestModal: React.FC = () => {
                   inputMode="numeric"
                   value={amountText}
                   onChange={(event) => setAmountText(event.target.value.replace(/\D/g, ''))}
-                  aria-invalid={isBelowMinimum || hasInsufficientBalance}
+                  aria-invalid={isBelowMinimum || isOffStep || hasInsufficientBalance}
                   aria-describedby="invest-amount-feedback"
                   className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border rounded-2xl text-slate-900 dark:text-white font-mono text-lg font-bold focus:outline-none focus:ring-2 pr-24 ${
-                    isBelowMinimum || hasInsufficientBalance
+                    isBelowMinimum || isOffStep || hasInsufficientBalance
                       ? 'border-red-400 dark:border-red-500 focus:ring-red-500'
                       : 'border-slate-200 dark:border-slate-700 focus:ring-emerald-500'
                   }`}
@@ -201,6 +268,10 @@ export const InvestModal: React.FC = () => {
                   <p className="text-red-600 dark:text-red-400 font-semibold">
                     {t('invest.belowMin', { amount: formatFCFA(minimum, language) })}
                   </p>
+                ) : isOffStep ? (
+                  <p className="text-amber-600 dark:text-amber-400 font-semibold">
+                    {t('invest.stepHint', { amount: formatFCFA(INVESTMENT_STEP, language) })}
+                  </p>
                 ) : hasInsufficientBalance ? (
                   <p className="text-red-600 dark:text-red-400 font-semibold">
                     {t('invest.insufficient', { balance: formatFCFA(user.walletBalance, language) })}
@@ -215,37 +286,95 @@ export const InvestModal: React.FC = () => {
             </div>
           </fieldset>
 
-          <div className="bg-slate-50 dark:bg-slate-800/70 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-3">
-            <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-200 dark:border-slate-700">
-              <span className="text-xs font-bold text-slate-600 dark:text-slate-400 flex items-center gap-1.5">
-                <TrendingUp className="w-4 h-4 text-emerald-600" aria-hidden="true" />
-                {t('invest.targetRate')}
+          {/* What this allocation commits to, and what it earns for it. */}
+          <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800/70 bg-emerald-50/70 dark:bg-emerald-950/30 overflow-hidden">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 bg-emerald-100/70 dark:bg-emerald-950/60 border-b border-emerald-200 dark:border-emerald-800/70">
+              <span className="text-xs font-extrabold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
+                <TrendingUp className="w-4 h-4" aria-hidden="true" />
+                {t('invest.tierNow', { tier: tr(tier.name) })}
               </span>
-              <span className="text-sm font-extrabold font-mono text-emerald-700 dark:text-emerald-400">
-                {formatPercent(opportunity.projectedReturnMin, language)} –{' '}
-                {formatPercent(opportunity.projectedReturnMax, language)}
+              <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                <Lock className="w-3.5 h-3.5" aria-hidden="true" />
+                {t('invest.lockNow', { months: lockMonths })}
               </span>
             </div>
 
-            <dl className="grid grid-cols-2 gap-4 text-xs">
+            <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 text-xs">
               <div>
-                <dt className="text-slate-500 dark:text-slate-400 font-medium">{t('invest.estAnnual')}</dt>
-                <dd className="font-mono font-bold text-slate-900 dark:text-white text-sm">
-                  ~{formatFCFA(annualIncome, language)}
+                <dt className="text-slate-600 dark:text-slate-400 font-medium">
+                  {t('invest.targetRate')}
+                </dt>
+                <dd className="font-mono font-extrabold text-emerald-700 dark:text-emerald-400 text-sm">
+                  {formatPercent(rate, language)}
                 </dd>
               </div>
               <div>
-                <dt className="text-slate-500 dark:text-slate-400 font-medium">{t('invest.estMaturity')}</dt>
-                <dd className="font-mono font-bold text-slate-900 dark:text-white text-sm">
-                  ~{formatFCFA(maturityValue, language)}
+                <dt className="text-slate-600 dark:text-slate-400 font-medium">
+                  {t('lock.yourTerm')}
+                </dt>
+                <dd className="font-bold text-slate-900 dark:text-white text-sm">
+                  {t(termLabel(lockMonths).key, { count: termLabel(lockMonths).count })}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-slate-600 dark:text-slate-400 font-medium">
+                  {t('invest.yieldOverTerm')}
+                </dt>
+                <dd className="font-mono font-bold text-emerald-700 dark:text-emerald-400 text-sm">
+                  +{formatFCFA(termYield, language)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-slate-600 dark:text-slate-400 font-medium">
+                  {t('invest.totalAtUnlock')}
+                </dt>
+                <dd className="font-mono font-extrabold text-slate-900 dark:text-white text-sm">
+                  {formatFCFA(valueAtUnlock, language)}
                 </dd>
               </div>
             </dl>
 
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 italic leading-normal">
-              {t('invest.projectionNote')}
+            {/* The commitment stated plainly, before the risk checkbox. */}
+            <p className="px-4 pb-3 text-[11px] leading-relaxed text-emerald-900 dark:text-emerald-300 flex items-start gap-2">
+              <Lock className="w-3.5 h-3.5 shrink-0 mt-px" aria-hidden="true" />
+              {t('lock.noticeInvest', {
+                amount: formatFCFA(amount, language),
+                months: lockMonths,
+                date: formatDate(unlockDate, language),
+              })}
             </p>
+
+            {upgrade && (
+              <p className="px-4 pb-4 text-[11px] text-slate-600 dark:text-slate-400">
+                {t('invest.tierUpsell', {
+                  amount: formatFCFA(upgrade.minAmount - amount, language),
+                  tier: tr(upgrade.name),
+                  rate: formatPercent(upgradeRate, language),
+                })}
+              </p>
+            )}
           </div>
+
+          {/* The full ladder, so the rule is legible rather than implied. */}
+          <details className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 overflow-hidden">
+            <summary className="px-4 py-3 text-xs font-bold text-slate-800 dark:text-slate-200 cursor-pointer select-none">
+              {t('tier.ladderTitle')}
+            </summary>
+            <div className="px-4 pb-4 space-y-3">
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                {t('tier.ladderBody')}
+              </p>
+              <TierLadder
+                current={tier.id}
+                projectedReturnMin={opportunity.projectedReturnMin}
+                projectedReturnMax={opportunity.projectedReturnMax}
+              />
+            </div>
+          </details>
+
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 italic leading-normal">
+            {t('invest.projectionNote')}
+          </p>
 
           <fieldset className="space-y-2">
             <legend className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
